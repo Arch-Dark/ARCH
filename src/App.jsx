@@ -9,7 +9,6 @@ import {
   ChevronDown,
   CircleDollarSign,
   LayoutDashboard,
-  Menu,
   Pencil,
   Plus,
   RotateCcw,
@@ -28,10 +27,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-
-/* =========================================================
-   CONSTANTES
-========================================================= */
 
 const CAPITALS_STORAGE_KEY = "trading-journal-capitals";
 const TRADES_STORAGE_KEY = "trading-journal-trades";
@@ -84,10 +79,6 @@ const RR_OPTIONS = Array.from(
   { length: 10 },
   (_, index) => index + 1
 );
-
-/* =========================================================
-   HELPERS
-========================================================= */
 
 function createId(prefix = "id") {
   return `${prefix}-${Date.now()}-${Math.random()
@@ -143,11 +134,10 @@ function getTradeTimestamp(trade) {
 }
 
 function getPipMultiplier(asset) {
-  if (asset === "XAUUSD") {
-    return 100;
-  }
-
-  if (asset === "USDJPY") {
+  if (
+    asset === "XAUUSD" ||
+    asset === "USDJPY"
+  ) {
     return 100;
   }
 
@@ -157,7 +147,10 @@ function getPipMultiplier(asset) {
 function getPipValuePerLot(asset, price) {
   const currentPrice = Number(price);
 
-  if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+  if (
+    !Number.isFinite(currentPrice) ||
+    currentPrice <= 0
+  ) {
     return 0;
   }
 
@@ -166,9 +159,12 @@ function getPipValuePerLot(asset, price) {
   }
 
   if (
-    ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"].includes(
-      asset
-    )
+    [
+      "EURUSD",
+      "GBPUSD",
+      "AUDUSD",
+      "NZDUSD",
+    ].includes(asset)
   ) {
     return 10;
   }
@@ -207,7 +203,8 @@ function calculateDirectionalPips(
       : Number(entry) - Number(exit);
 
   return (
-    difference * getPipMultiplier(asset)
+    difference *
+    getPipMultiplier(asset)
   );
 }
 
@@ -255,7 +252,8 @@ function calculateLot(
 ) {
   const risk = Number(riskMoney) || 0;
   const pips = Number(stopPips) || 0;
-  const pipValue = Number(pipValuePerLot) || 0;
+  const pipValue =
+    Number(pipValuePerLot) || 0;
 
   if (
     risk <= 0 ||
@@ -268,7 +266,9 @@ function calculateLot(
   const rawLot =
     risk / (pips * pipValue);
 
-  return Math.floor(rawLot * 100) / 100;
+  return (
+    Math.floor(rawLot * 100) / 100
+  );
 }
 
 function getCapitalRisk(capital) {
@@ -295,8 +295,13 @@ function getCapitalRisk(capital) {
 function getCapitalRiskPercent(capital) {
   if (!capital) return 0;
 
-  if (capital.riskMode === "percentage") {
-    return Number(capital.riskPercent) || 0;
+  if (
+    capital.riskMode ===
+    "percentage"
+  ) {
+    return (
+      Number(capital.riskPercent) || 0
+    );
   }
 
   const balance =
@@ -332,24 +337,61 @@ function getResultClass(value) {
 function isClosedTrade(trade) {
   return (
     trade &&
-    String(trade.status || "closed")
-      .toLowerCase() === "closed"
+    String(
+      trade.status || "closed"
+    ).toLowerCase() === "closed"
   );
 }
 
-/*
-  Cette fonction corrige également les anciens trades
-  dont pnl était éventuellement enregistré à 0 alors
-  que resultR / riskMoney étaient corrects.
-*/
-function getTradeNetPnl(trade) {
-  const storedPnl = Number(trade?.pnl);
-  const resultR = Number(trade?.resultR);
-  const riskMoney = Number(trade?.riskMoney);
-  const grossPnl = Number(trade?.grossPnl);
-  const fees = Number(trade?.fees) || 0;
-  const swap = Number(trade?.swap) || 0;
+function getTradeR(trade) {
+  const resultR = Number(
+    trade?.resultR
+  );
 
+  return Number.isFinite(resultR)
+    ? resultR
+    : 0;
+}
+
+/*
+ * Calcul du P/L robuste.
+ *
+ * Priorité :
+ * 1. P/L réellement enregistré.
+ * 2. resultR × risque.
+ * 3. calcul direct avec prix / pips / lot / valeur du pip.
+ * 4. grossPnl - frais + swap.
+ */
+function getTradeNetPnl(trade) {
+  if (!trade) return 0;
+
+  const storedPnl = Number(
+    trade.pnl
+  );
+
+  const resultR = Number(
+    trade.resultR
+  );
+
+  const riskMoney = Number(
+    trade.riskMoney
+  );
+
+  const grossPnl = Number(
+    trade.grossPnl
+  );
+
+  const fees =
+    Number(trade.fees) || 0;
+
+  const swap =
+    Number(trade.swap) || 0;
+
+  /*
+   * Nouveau format :
+   * si pnl est réellement différent de zéro,
+   * on l'utilise directement.
+   */
   if (
     Number.isFinite(storedPnl) &&
     storedPnl !== 0
@@ -357,39 +399,89 @@ function getTradeNetPnl(trade) {
     return storedPnl;
   }
 
+  /*
+   * Compatibilité avec les anciens trades :
+   * certains avaient pnl = 0 mais resultR correct.
+   */
   if (
     Number.isFinite(resultR) &&
     Number.isFinite(riskMoney) &&
     resultR !== 0 &&
     riskMoney > 0
   ) {
-    return resultR * riskMoney;
+    return (
+      resultR * riskMoney
+    );
   }
 
+  /*
+   * Si le résultat R n'existe pas,
+   * on recalcule directement avec les prix.
+   */
+  const entry = Number(
+    trade.entry
+  );
+
+  const exit = Number(
+    trade.exitPrice
+  );
+
+  const lot = Number(
+    trade.lot
+  );
+
+  const pipValue =
+    Number(trade.pipValue) ||
+    getPipValuePerLot(
+      trade.asset,
+      entry
+    );
+
+  if (
+    Number.isFinite(entry) &&
+    Number.isFinite(exit) &&
+    Number.isFinite(lot) &&
+    lot > 0 &&
+    Number.isFinite(pipValue) &&
+    pipValue > 0
+  ) {
+    const resultPips =
+      calculateDirectionalPips(
+        trade.asset,
+        trade.direction,
+        entry,
+        exit
+      );
+
+    const calculatedGross =
+      resultPips *
+      lot *
+      pipValue;
+
+    return (
+      calculatedGross -
+      fees +
+      swap
+    );
+  }
+
+  /*
+   * Dernier fallback :
+   * grossPnl - fees + swap.
+   */
   if (Number.isFinite(grossPnl)) {
-    return grossPnl - fees + swap;
+    return (
+      grossPnl -
+      fees +
+      swap
+    );
   }
 
-  return Number.isFinite(storedPnl)
+  return Number.isFinite(
+    storedPnl
+  )
     ? storedPnl
     : 0;
-}
-
-function getTradeR(trade) {
-  const value = Number(trade?.resultR);
-
-  if (Number.isFinite(value)) {
-    return value;
-  }
-
-  const pnl = getTradeNetPnl(trade);
-  const risk = Number(trade?.riskMoney) || 0;
-
-  if (risk > 0) {
-    return pnl / risk;
-  }
-
-  return 0;
 }
 
 function getTradeDate(trade) {
@@ -401,8 +493,13 @@ function getTradeDate(trade) {
     : null;
 }
 
-function isSameDay(dateA, dateB) {
-  if (!dateA || !dateB) return false;
+function isSameDay(
+  dateA,
+  dateB
+) {
+  if (!dateA || !dateB) {
+    return false;
+  }
 
   return (
     dateA.getFullYear() ===
@@ -438,7 +535,10 @@ function getStartOfWeek(date) {
   return result;
 }
 
-function isSameWeek(date, reference) {
+function isSameWeek(
+  date,
+  reference
+) {
   if (!date || !reference) {
     return false;
   }
@@ -458,7 +558,10 @@ function isSameWeek(date, reference) {
   );
 }
 
-function isSameMonth(date, reference) {
+function isSameMonth(
+  date,
+  reference
+) {
   if (!date || !reference) {
     return false;
   }
@@ -471,190 +574,72 @@ function isSameMonth(date, reference) {
   );
 }
 
-function clamp(value, min, max) {
-  return Math.min(
-    Math.max(value, min),
-    max
-  );
-}
-
-/* =========================================================
-   PERFORMANCE ENGINE
-========================================================= */
-
 function calculatePerformanceStats(
-  trades,
-  initialCapital = 0
+  list,
+  initialCapital
 ) {
-  const list = Array.isArray(trades)
-    ? trades.filter(isClosedTrade)
-    : [];
-
-  const chronologicalTrades = [
-    ...list,
-  ].sort(
-    (a, b) =>
-      getTradeTimestamp(a) -
-      getTradeTimestamp(b)
-  );
-
-  let wins = 0;
-  let losses = 0;
-  let breakeven = 0;
-
-  let grossProfit = 0;
-  let grossLoss = 0;
-
-  let sumWin = 0;
-  let sumLoss = 0;
-  let sumR = 0;
-
-  let currentWinStreak = 0;
-  let currentLossStreak = 0;
-  let bestWinStreak = 0;
-  let bestLossStreak = 0;
-
-  let equity =
-    Number(initialCapital) || 0;
-
-  let peakEquity = equity;
-  let maxDrawdown = 0;
-  let maxDrawdownPercent = 0;
-
-  const equityCurve = [];
+  const closedTrades = list
+    .filter(isClosedTrade)
+    .slice()
+    .sort(
+      (a, b) =>
+        getTradeTimestamp(a) -
+        getTradeTimestamp(b)
+    );
 
   const now = new Date();
 
-  let pnlToday = 0;
-  let pnlWeek = 0;
-  let pnlMonth = 0;
+  const wins =
+    closedTrades.filter(
+      (trade) =>
+        getTradeNetPnl(trade) > 0
+    );
 
-  chronologicalTrades.forEach(
-    (trade) => {
-      const pnl =
-        getTradeNetPnl(trade);
+  const losses =
+    closedTrades.filter(
+      (trade) =>
+        getTradeNetPnl(trade) < 0
+    );
 
-      const resultR =
-        getTradeR(trade);
-
-      const tradeDate =
-        getTradeDate(trade);
-
-      if (pnl > 0) {
-        wins += 1;
-        grossProfit += pnl;
-        sumWin += pnl;
-
-        currentWinStreak += 1;
-        currentLossStreak = 0;
-
-        bestWinStreak = Math.max(
-          bestWinStreak,
-          currentWinStreak
-        );
-      } else if (pnl < 0) {
-        losses += 1;
-        grossLoss += Math.abs(pnl);
-        sumLoss += pnl;
-
-        currentLossStreak += 1;
-        currentWinStreak = 0;
-
-        bestLossStreak = Math.max(
-          bestLossStreak,
-          currentLossStreak
-        );
-      } else {
-        breakeven += 1;
-        currentWinStreak = 0;
-        currentLossStreak = 0;
-      }
-
-      sumR += resultR;
-
-      equity += pnl;
-
-      peakEquity = Math.max(
-        peakEquity,
-        equity
-      );
-
-      const drawdown =
-        peakEquity - equity;
-
-      const drawdownPercent =
-        peakEquity > 0
-          ? (drawdown / peakEquity) *
-            100
-          : 0;
-
-      maxDrawdown = Math.max(
-        maxDrawdown,
-        drawdown
-      );
-
-      maxDrawdownPercent =
-        Math.max(
-          maxDrawdownPercent,
-          drawdownPercent
-        );
-
-      equityCurve.push({
-        date:
-          tradeDate
-            ? tradeDate.toLocaleDateString(
-                "fr-FR"
-              )
-            : "-",
-        timestamp:
-          getTradeTimestamp(trade),
-        equity,
-        pnl,
-      });
-
-      if (tradeDate) {
-        if (
-          isSameDay(
-            tradeDate,
-            now
-          )
-        ) {
-          pnlToday += pnl;
-        }
-
-        if (
-          isSameWeek(
-            tradeDate,
-            now
-          )
-        ) {
-          pnlWeek += pnl;
-        }
-
-        if (
-          isSameMonth(
-            tradeDate,
-            now
-          )
-        ) {
-          pnlMonth += pnl;
-        }
-      }
-    }
-  );
+  const breakevens =
+    closedTrades.filter(
+      (trade) =>
+        getTradeNetPnl(trade) === 0
+    );
 
   const totalPnl =
-    list.reduce(
+    closedTrades.reduce(
       (sum, trade) =>
-        sum + getTradeNetPnl(trade),
+        sum +
+        getTradeNetPnl(trade),
       0
     );
 
-  const tradeCount = list.length;
+  const grossProfit =
+    wins.reduce(
+      (sum, trade) =>
+        sum +
+        getTradeNetPnl(trade),
+      0
+    );
+
+  const grossLoss = Math.abs(
+    losses.reduce(
+      (sum, trade) =>
+        sum +
+        getTradeNetPnl(trade),
+      0
+    )
+  );
+
+  const tradeCount =
+    closedTrades.length;
 
   const winRate =
     tradeCount > 0
-      ? (wins / tradeCount) * 100
+      ? (wins.length /
+          tradeCount) *
+        100
       : 0;
 
   const profitFactor =
@@ -665,534 +650,3505 @@ function calculatePerformanceStats(
       : 0;
 
   const avgWin =
-    wins > 0
-      ? sumWin / wins
+    wins.length > 0
+      ? grossProfit / wins.length
       : 0;
 
   const avgLoss =
-    losses > 0
-      ? sumLoss / losses
+    losses.length > 0
+      ? -grossLoss /
+        losses.length
       : 0;
 
   const avgR =
     tradeCount > 0
-      ? sumR / tradeCount
+      ? closedTrades.reduce(
+          (sum, trade) =>
+            sum +
+            getTradeR(trade),
+          0
+        ) / tradeCount
       : 0;
+
+  let equity =
+    Number(initialCapital) || 0;
+
+  let peak = equity;
+
+  let maxDrawdown = 0;
+
+  let maxDrawdownPercent = 0;
+
+  const equityCurve = [
+    {
+      date: "Départ",
+      equity,
+      pnl: 0,
+    },
+  ];
+
+  closedTrades.forEach(
+    (trade) => {
+      const pnl =
+        getTradeNetPnl(trade);
+
+      equity += pnl;
+
+      peak = Math.max(
+        peak,
+        equity
+      );
+
+      const drawdown =
+        peak - equity;
+
+      const drawdownPercent =
+        peak > 0
+          ? (drawdown /
+              peak) *
+            100
+          : 0;
+
+      maxDrawdown =
+        Math.max(
+          maxDrawdown,
+          drawdown
+        );
+
+      maxDrawdownPercent =
+        Math.max(
+          maxDrawdownPercent,
+          drawdownPercent
+        );
+
+      equityCurve.push({
+        date: formatDate(
+          trade.dateTime ||
+            trade.date ||
+            trade.createdAt
+        ),
+        equity,
+        pnl,
+      });
+    }
+  );
+
+  let bestStreak = 0;
+  let worstStreak = 0;
+
+  let currentWinStreak = 0;
+  let currentLossStreak = 0;
+
+  closedTrades.forEach(
+    (trade) => {
+      const pnl =
+        getTradeNetPnl(trade);
+
+      if (pnl > 0) {
+        currentWinStreak += 1;
+        currentLossStreak = 0;
+
+        bestStreak =
+          Math.max(
+            bestStreak,
+            currentWinStreak
+          );
+      } else if (pnl < 0) {
+        currentLossStreak += 1;
+        currentWinStreak = 0;
+
+        worstStreak =
+          Math.max(
+            worstStreak,
+            currentLossStreak
+          );
+      } else {
+        currentWinStreak = 0;
+        currentLossStreak = 0;
+      }
+    }
+  );
+
+  const pnlToday =
+    closedTrades
+      .filter((trade) =>
+        isSameDay(
+          getTradeDate(trade),
+          now
+        )
+      )
+      .reduce(
+        (sum, trade) =>
+          sum +
+          getTradeNetPnl(trade),
+        0
+      );
+
+  const pnlWeek =
+    closedTrades
+      .filter((trade) =>
+        isSameWeek(
+          getTradeDate(trade),
+          now
+        )
+      )
+      .reduce(
+        (sum, trade) =>
+          sum +
+          getTradeNetPnl(trade),
+        0
+      );
+
+  const pnlMonth =
+    closedTrades
+      .filter((trade) =>
+        isSameMonth(
+          getTradeDate(trade),
+          now
+        )
+      )
+      .reduce(
+        (sum, trade) =>
+          sum +
+          getTradeNetPnl(trade),
+        0
+      );
 
   const startCapital =
     Number(initialCapital) || 0;
 
   const pnlPercent =
     startCapital > 0
-      ? (totalPnl / startCapital) *
+      ? (totalPnl /
+          startCapital) *
         100
       : 0;
 
-  const expectancy =
-    avgR;
-
   return {
     trades: tradeCount,
-    wins,
-    losses,
-    breakeven,
+    wins: wins.length,
+    losses: losses.length,
+    breakevens:
+      breakevens.length,
+    totalPnl,
     grossProfit,
     grossLoss,
-    totalPnl,
     winRate,
     profitFactor,
     avgWin,
     avgLoss,
     avgR,
-    expectancy,
     pnlPercent,
+    maxDrawdown,
+    maxDrawdownPercent,
+    bestStreak,
+    worstStreak,
     pnlToday,
     pnlWeek,
     pnlMonth,
-    maxDrawdown,
-    maxDrawdownPercent,
-    bestWinStreak,
-    bestLossStreak,
     equityCurve,
   };
 }
 
-function buildGroupedStats(
-  trades,
-  field
-) {
-  const groups = {};
+function PageTitle({
+  icon: Icon,
+  title,
+  subtitle,
+}) {
+  return (
+    <div className="page-title">
+      <div className="page-title-icon">
+        <Icon size={22} />
+      </div>
 
-  trades
-    .filter(isClosedTrade)
-    .forEach((trade) => {
-      const key =
-        trade?.[field] ||
-        "Non renseigné";
+      <div>
+        <h1>{title}</h1>
 
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-
-      groups[key].push(trade);
-    });
-
-  return Object.entries(groups)
-    .map(([name, list]) => {
-      const stats =
-        calculatePerformanceStats(
-          list,
-          0
-        );
-
-      return {
-        name,
-        ...stats,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.totalPnl -
-        a.totalPnl
-    );
-}
-
-function buildRRStats(trades) {
-  return RR_OPTIONS.map(
-    (rr) => {
-      const list = trades.filter(
-        (trade) =>
-          isClosedTrade(trade) &&
-          Number(trade.rr) === rr
-      );
-
-      const stats =
-        calculatePerformanceStats(
-          list,
-          0
-        );
-
-      return {
-        rr,
-        ...stats,
-      };
-    }
+        {subtitle && (
+          <p>{subtitle}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
-/* =========================================================
-   STYLES
-========================================================= */
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  tone = "neutral",
+}) {
+  return (
+    <div
+      className={`metric-card ${tone}`}
+    >
+      <div className="metric-card-top">
+        <span>{title}</span>
 
-const styles = {
-  app: {
-    minHeight: "100vh",
-    background: "#020617",
-    color: "#e2e8f0",
-    display: "flex",
-    fontFamily:
-      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  },
+        <div className="metric-icon">
+          <Icon size={18} />
+        </div>
+      </div>
 
-  sidebar: {
-    width: "250px",
-    background: "#0f172a",
-    borderRight:
-      "1px solid #1e293b",
-    padding: "20px 14px",
-    display: "flex",
-    flexDirection: "column",
-    flexShrink: 0,
-  },
+      <strong>{value}</strong>
 
-  logo: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "30px",
-    padding: "0 8px",
-  },
+      {subtitle && (
+        <small>{subtitle}</small>
+      )}
+    </div>
+  );
+}
 
-  logoIcon: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "10px",
-    background: "#2563eb",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-  },
+function StatsTable({
+  title,
+  rows,
+  columns,
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>{title}</h2>
+      </div>
 
-  logoTitle: {
-    fontSize: "17px",
-    fontWeight: 800,
-    color: "#f8fafc",
-  },
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              {columns.map(
+                (column) => (
+                  <th
+                    key={
+                      column.key
+                    }
+                  >
+                    {
+                      column.label
+                    }
+                  </th>
+                )
+              )}
+            </tr>
+          </thead>
 
-  logoSubtitle: {
-    fontSize: "11px",
-    color: "#64748b",
-    marginTop: "2px",
-  },
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={
+                    columns.length
+                  }
+                  className="empty-cell"
+                >
+                  Aucune donnée
+                </td>
+              </tr>
+            ) : (
+              rows.map(
+                (row, index) => (
+                  <tr
+                    key={
+                      row.id ||
+                      row.name ||
+                      index
+                    }
+                  >
+                    {columns.map(
+                      (
+                        column
+                      ) => (
+                        <td
+                          key={
+                            column.key
+                          }
+                        >
+                          {column.render
+                            ? column.render(
+                                row
+                              )
+                            : row[
+                                column.key
+                              ]}
+                        </td>
+                      )
+                    )}
+                  </tr>
+                )
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
-  nav: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "5px",
-  },
+function CapitalPage({
+  capitals,
+  trades,
+  onNew,
+  onEdit,
+  onArchive,
+  onRestore,
+  onDelete,
+}) {
+  const active =
+    capitals.filter(
+      (capital) =>
+        capital.status !==
+        "archived"
+    );
 
-  navButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    width: "100%",
-    border: "none",
-    background: "transparent",
-    color: "#94a3b8",
-    padding: "11px 12px",
-    borderRadius: "9px",
-    cursor: "pointer",
-    textAlign: "left",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
+  const archived =
+    capitals.filter(
+      (capital) =>
+        capital.status ===
+        "archived"
+    );
 
-  navButtonActive: {
-    background: "#1e3a8a",
-    color: "#dbeafe",
-  },
+  function renderCapital(
+    capital
+  ) {
+    const linkedTrades =
+      trades.filter(
+        (trade) =>
+          trade.capitalId ===
+          capital.id
+      );
 
-  main: {
-    flex: 1,
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-  },
+    const pnl =
+      linkedTrades.reduce(
+        (sum, trade) =>
+          sum +
+          getTradeNetPnl(trade),
+        0
+      );
 
-  topbar: {
-    height: "64px",
-    borderBottom:
-      "1px solid #1e293b",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 22px",
-    background: "#020617",
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-  },
+    return (
+      <div
+        className="capital-card"
+        key={capital.id}
+      >
+        <div className="capital-card-header">
+          <div>
+            <h3>
+              {capital.name}
+            </h3>
 
-  topbarLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
+            <span
+              className={`status-badge ${
+                capital.status ===
+                "archived"
+                  ? "archived"
+                  : "active"
+              }`}
+            >
+              {capital.status ===
+              "archived"
+                ? "Archivé"
+                : "Actif"}
+            </span>
+          </div>
 
-  topbarTitle: {
-    fontSize: "15px",
-    fontWeight: 700,
-  },
+          <div className="card-actions">
+            <button
+              className="icon-button"
+              onClick={() =>
+                onEdit(capital)
+              }
+              title="Modifier"
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
+        </div>
 
-  topbarStatus: {
-    fontSize: "12px",
-    color: "#64748b",
-  },
+        <div className="capital-main-value">
+          {formatMoney(
+            capital.currentBalance
+          )}
+        </div>
 
-  content: {
-    padding: "24px",
-    maxWidth: "1800px",
-    width: "100%",
-    margin: "0 auto",
-    boxSizing: "border-box",
-  },
+        <div className="capital-grid">
+          <div>
+            <span>Capital initial</span>
+            <strong>
+              {formatMoney(
+                capital.initialCapital
+              )}
+            </strong>
+          </div>
 
-  pageTitle: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "20px",
-    marginBottom: "22px",
-    flexWrap: "wrap",
-  },
+          <div>
+            <span>Risque / trade</span>
+            <strong>
+              {formatMoney(
+                getCapitalRisk(
+                  capital
+                )
+              )}
+            </strong>
+          </div>
 
-  pageTitleText: {
-    fontSize: "25px",
-    fontWeight: 800,
-    margin: 0,
-  },
+          <div>
+            <span>Risque %</span>
+            <strong>
+              {formatPercent(
+                getCapitalRiskPercent(
+                  capital
+                )
+              )}
+            </strong>
+          </div>
 
-  pageSubtitle: {
-    color: "#64748b",
-    fontSize: "13px",
-    marginTop: "5px",
-  },
+          <div>
+            <span>RR de base</span>
+            <strong>
+              RR{capital.defaultRR}
+            </strong>
+          </div>
+        </div>
 
-  card: {
-    background: "#0f172a",
-    border:
-      "1px solid #1e293b",
-    borderRadius: "14px",
-    padding: "18px",
-    boxSizing: "border-box",
-  },
+        <div className="capital-pnl">
+          <span>P/L</span>
 
-  metricCard: {
-    background: "#0f172a",
-    border:
-      "1px solid #1e293b",
-    borderRadius: "13px",
-    padding: "17px",
-    minWidth: 0,
-  },
+          <strong
+            className={getResultClass(
+              pnl
+            )}
+          >
+            {formatMoney(pnl)}
+          </strong>
+        </div>
 
-  metricLabel: {
-    color: "#64748b",
-    fontSize: "11px",
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  },
+        <div className="capital-actions">
+          {capital.status ===
+          "archived" ? (
+            <button
+              className="secondary-button"
+              onClick={() =>
+                onRestore(
+                  capital.id
+                )
+              }
+            >
+              <RotateCcw
+                size={15}
+              />
+              Restaurer
+            </button>
+          ) : (
+            <button
+              className="secondary-button"
+              onClick={() =>
+                onArchive(
+                  capital.id
+                )
+              }
+            >
+              <Archive
+                size={15}
+              />
+              Archiver
+            </button>
+          )}
 
-  metricValue: {
-    fontSize: "22px",
-    fontWeight: 800,
-    marginTop: "7px",
-  },
+          <button
+            className="danger-button"
+            onClick={() =>
+              onDelete(capital.id)
+            }
+          >
+            <Trash2 size={15} />
+            Supprimer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  grid4: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(4, minmax(0, 1fr))",
-    gap: "13px",
-  },
+  return (
+    <div className="page">
+      <div className="page-header-row">
+        <PageTitle
+          icon={WalletCards}
+          title="Capitaux"
+          subtitle="Gérez vos capitaux actifs et archivés."
+        />
 
-  grid3: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(3, minmax(0, 1fr))",
-    gap: "13px",
-  },
+        <button
+          className="primary-button"
+          onClick={onNew}
+        >
+          <Plus size={18} />
+          Nouveau capital
+        </button>
+      </div>
 
-  grid2: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(2, minmax(0, 1fr))",
-    gap: "13px",
-  },
+      <section className="section-block">
+        <div className="section-heading">
+          <h2>Capitaux actifs</h2>
+          <span>
+            {active.length}
+          </span>
+        </div>
 
-  section: {
-    marginTop: "20px",
-  },
+        <div className="capital-list">
+          {active.length === 0 ? (
+            <div className="empty-state">
+              Aucun capital actif.
+            </div>
+          ) : (
+            active.map(renderCapital)
+          )}
+        </div>
+      </section>
 
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "15px",
-    marginBottom: "12px",
-    flexWrap: "wrap",
-  },
+      <section className="section-block">
+        <div className="section-heading">
+          <h2>Capitaux archivés</h2>
+          <span>
+            {archived.length}
+          </span>
+        </div>
 
-  sectionTitle: {
-    fontSize: "16px",
-    fontWeight: 800,
-    margin: 0,
-  },
+        <div className="capital-list">
+          {archived.length ===
+          0 ? (
+            <div className="empty-state">
+              Aucun capital archivé.
+            </div>
+          ) : (
+            archived.map(
+              renderCapital
+            )
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
 
-  sectionSubtitle: {
-    fontSize: "12px",
-    color: "#64748b",
-    marginTop: "4px",
-  },
+function DashboardPage({
+  capitals,
+  trades,
+  selectedCapitalId,
+  setSelectedCapitalId,
+}) {
+  const selectedCapital =
+    capitals.find(
+      (capital) =>
+        capital.id ===
+        selectedCapitalId
+    );
 
-  button: {
-    border: "1px solid #334155",
-    background: "#111827",
-    color: "#cbd5e1",
-    padding: "9px 13px",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "7px",
-    fontSize: "12px",
-    fontWeight: 700,
-  },
+  /*
+   * IMPORTANT :
+   * "all" = tous les capitaux,
+   * actifs + archivés.
+   */
+  const analyzedData = useMemo(() => {
+    const allClosedTrades =
+      trades.filter(
+        isClosedTrade
+      );
 
-  primaryButton: {
-    background: "#2563eb",
-    border:
-      "1px solid #2563eb",
-    color: "white",
-  },
+    if (
+      selectedCapitalId ===
+      "all"
+    ) {
+      const initialCapital =
+        capitals.reduce(
+          (sum, capital) =>
+            sum +
+            (Number(
+              capital.initialCapital
+            ) || 0),
+          0
+        );
 
-  dangerButton: {
-    background: "#450a0a",
-    border:
-      "1px solid #7f1d1d",
-    color: "#fecaca",
-  },
+      const currentBalance =
+        capitals.reduce(
+          (sum, capital) =>
+            sum +
+            (Number(
+              capital.currentBalance
+            ) || 0),
+          0
+        );
 
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    background: "#020617",
-    color: "#e2e8f0",
-    border:
-      "1px solid #334155",
-    borderRadius: "8px",
-    padding: "10px 11px",
-    outline: "none",
-    fontSize: "13px",
-  },
+      return {
+        capital: null,
+        trades: allClosedTrades,
+        initialCapital,
+        currentBalance,
+        name: "Tous les capitaux",
+      };
+    }
 
-  label: {
-    display: "block",
-    color: "#94a3b8",
-    fontSize: "11px",
-    fontWeight: 700,
-    marginBottom: "6px",
-  },
+    if (!selectedCapital) {
+      return {
+        capital: null,
+        trades: [],
+        initialCapital: 0,
+        currentBalance: 0,
+        name: "Aucun capital",
+      };
+    }
 
-  formGrid2: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(2, minmax(0, 1fr))",
-    gap: "13px",
-  },
+    return {
+      capital:
+        selectedCapital,
+      trades:
+        allClosedTrades.filter(
+          (trade) =>
+            trade.capitalId ===
+            selectedCapital.id
+        ),
+      initialCapital:
+        Number(
+          selectedCapital.initialCapital
+        ) || 0,
+      currentBalance:
+        Number(
+          selectedCapital.currentBalance
+        ) || 0,
+      name:
+        selectedCapital.name,
+    };
+  }, [
+    capitals,
+    trades,
+    selectedCapitalId,
+  ]);
 
-  formGrid3: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(3, minmax(0, 1fr))",
-    gap: "13px",
-  },
+  const stats = useMemo(
+    () =>
+      calculatePerformanceStats(
+        analyzedData.trades,
+        analyzedData.initialCapital
+      ),
+    [analyzedData]
+  );
 
-  tableWrapper: {
-    overflowX: "auto",
-    border:
-      "1px solid #1e293b",
-    borderRadius: "10px",
-  },
+  const groupedStats = useMemo(() => {
+    const makeGroup = (
+      field
+    ) => {
+      const map = new Map();
 
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "700px",
-  },
+      analyzedData.trades.forEach(
+        (trade) => {
+          const key =
+            trade[field] ||
+            "Non renseigné";
 
-  th: {
-    padding: "10px 12px",
-    textAlign: "left",
-    color: "#64748b",
-    fontSize: "10px",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    borderBottom:
-      "1px solid #1e293b",
-    whiteSpace: "nowrap",
-  },
+          if (!map.has(key)) {
+            map.set(key, []);
+          }
 
-  td: {
-    padding: "10px 12px",
-    borderBottom:
-      "1px solid #172033",
-    fontSize: "12px",
-    color: "#cbd5e1",
-    whiteSpace: "nowrap",
-  },
+          map.get(key).push(
+            trade
+          );
+        }
+      );
 
-  badge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "4px 8px",
-    borderRadius: "999px",
-    background: "#172033",
-    color: "#cbd5e1",
-    fontSize: "10px",
-    fontWeight: 700,
-  },
+      return Array.from(
+        map.entries()
+      ).map(
+        ([name, group]) => {
+          const groupStats =
+            calculatePerformanceStats(
+              group,
+              0
+            );
 
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background:
-      "rgba(2, 6, 23, 0.78)",
-    backdropFilter: "blur(5px)",
-    zIndex: 100,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "20px",
-  },
+          return {
+            id: name,
+            name,
+            trades:
+              groupStats.trades,
+            wins:
+              groupStats.wins,
+            losses:
+              groupStats.losses,
+            breakevens:
+              groupStats.breakevens,
+            pnl:
+              groupStats.totalPnl,
+            winRate:
+              groupStats.winRate,
+            avgR:
+              groupStats.avgR,
+          };
+        }
+      );
+    };
 
-  modal: {
-    width: "min(850px, 100%)",
-    maxHeight: "92vh",
-    overflowY: "auto",
-    background: "#0f172a",
-    border:
-      "1px solid #334155",
-    borderRadius: "15px",
-    padding: "20px",
-    boxSizing: "border-box",
-  },
+    return {
+      asset: makeGroup(
+        "asset"
+      ),
+      setup: makeGroup(
+        "setup"
+      ),
+      session: makeGroup(
+        "session"
+      ),
+      timeframe: makeGroup(
+        "timeframe"
+      ),
+      direction: makeGroup(
+        "direction"
+      ),
+      exitType: makeGroup(
+        "exitType"
+      ),
+    };
+  }, [
+    analyzedData.trades,
+  ]);
 
-  modalHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "20px",
-  },
+  const rrStats = useMemo(() => {
+    return RR_OPTIONS.map(
+      (rr) => {
+        const group =
+          analyzedData.trades.filter(
+            (trade) =>
+              Number(
+                trade.rr
+              ) === rr
+          );
 
-  modalTitle: {
-    fontSize: "18px",
-    fontWeight: 800,
-    margin: 0,
-  },
+        const groupStats =
+          calculatePerformanceStats(
+            group,
+            0
+          );
 
-  closeButton: {
-    width: "32px",
-    height: "32px",
-    border: "none",
-    background: "#172033",
-    color: "#94a3b8",
-    borderRadius: "8px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+        return {
+          id: rr,
+          name: `RR${rr}`,
+          trades:
+            groupStats.trades,
+          wins:
+            groupStats.wins,
+          losses:
+            groupStats.losses,
+          breakevens:
+            groupStats.breakevens,
+          pnl:
+            groupStats.totalPnl,
+          winRate:
+            groupStats.winRate,
+          avgR:
+            groupStats.avgR,
+        };
+      }
+    );
+  }, [
+    analyzedData.trades,
+  ]);
 
-  notification: {
-    position: "fixed",
-    right: "20px",
-    bottom: "20px",
-    zIndex: 200,
-    padding: "12px 16px",
-    borderRadius: "10px",
-    background: "#0f172a",
-    border:
-      "1px solid #334155",
-    boxShadow:
-      "0 15px 40px rgba(0,0,0,.35)",
-    fontSize: "13px",
-    fontWeight: 700,
-  },
-};
+  return (
+    <div className="page">
+      <div className="page-header-row">
+        <PageTitle
+          icon={LayoutDashboard}
+          title="Dashboard"
+          subtitle="Analysez les performances du capital sélectionné."
+        />
 
-/* =========================================================
-   APP
-========================================================= */
+        <div className="dashboard-filter">
+          <label>
+            Capital analysé
+          </label>
+
+          <div className="select-wrapper">
+            <select
+              value={
+                selectedCapitalId
+              }
+              onChange={(event) =>
+                setSelectedCapitalId(
+                  event.target.value
+                )
+              }
+            >
+              <option value="all">
+                Tous les capitaux
+              </option>
+
+              {capitals.map(
+                (capital) => (
+                  <option
+                    key={
+                      capital.id
+                    }
+                    value={
+                      capital.id
+                    }
+                  >
+                    {capital.name}
+                    {capital.status ===
+                    "archived"
+                      ? " — Archivé"
+                      : ""}
+                  </option>
+                )
+              )}
+            </select>
+
+            <ChevronDown
+              size={16}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="analysis-banner">
+        <div>
+          <span>
+            Capital analysé
+          </span>
+
+          <strong>
+            {analyzedData.name}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Trades pris en compte
+          </span>
+
+          <strong>
+            {stats.trades}
+          </strong>
+        </div>
+      </div>
+
+      <div className="metrics-grid">
+        <MetricCard
+          title="Balance actuelle"
+          value={formatMoney(
+            analyzedData.currentBalance
+          )}
+          subtitle={
+            analyzedData.name
+          }
+          icon={
+            CircleDollarSign
+          }
+        />
+
+        <MetricCard
+          title="P/L"
+          value={formatMoney(
+            stats.totalPnl
+          )}
+          subtitle={`${formatPercent(
+            stats.pnlPercent
+          )} depuis le capital initial`}
+          icon={BarChart3}
+          tone={getResultClass(
+            stats.totalPnl
+          )}
+        />
+
+        <MetricCard
+          title="Win rate"
+          value={formatPercent(
+            stats.winRate
+          )}
+          subtitle={`${stats.wins} gains / ${stats.losses} pertes`}
+          icon={Check}
+        />
+
+        <MetricCard
+          title="Profit Factor"
+          value={
+            stats.profitFactor ===
+            Infinity
+              ? "∞"
+              : formatNumber(
+                  stats.profitFactor,
+                  2
+                )
+          }
+          subtitle={`Gross profit ${formatMoney(
+            stats.grossProfit
+          )}`}
+          icon={BarChart3}
+        />
+
+        <MetricCard
+          title="P/L aujourd'hui"
+          value={formatMoney(
+            stats.pnlToday
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            stats.pnlToday
+          )}
+        />
+
+        <MetricCard
+          title="P/L semaine"
+          value={formatMoney(
+            stats.pnlWeek
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            stats.pnlWeek
+          )}
+        />
+
+        <MetricCard
+          title="P/L mois"
+          value={formatMoney(
+            stats.pnlMonth
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            stats.pnlMonth
+          )}
+        />
+
+        <MetricCard
+          title="R moyen"
+          value={`${formatNumber(
+            stats.avgR,
+            2
+          )}R`}
+          subtitle={`${stats.trades} trades`}
+          icon={Calculator}
+        />
+      </div>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>
+              Courbe d'équité
+            </h2>
+
+            <p>
+              Évolution du capital
+              selon les trades
+              clôturés.
+            </p>
+          </div>
+        </div>
+
+        <div className="chart-container">
+          {stats.equityCurve
+            .length > 1 ? (
+            <ResponsiveContainer
+              width="100%"
+              height={320}
+            >
+              <AreaChart
+                data={
+                  stats.equityCurve
+                }
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#243044"
+                />
+
+                <XAxis
+                  dataKey="date"
+                  stroke="#94a3b8"
+                />
+
+                <YAxis
+                  stroke="#94a3b8"
+                />
+
+                <Tooltip
+                  formatter={(
+                    value
+                  ) =>
+                    formatMoney(
+                      value
+                    )
+                  }
+                />
+
+                <Area
+                  type="monotone"
+                  dataKey="equity"
+                  stroke="#38bdf8"
+                  fill="#38bdf8"
+                  fillOpacity={0.12}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="empty-state">
+              Pas encore assez de
+              données pour afficher
+              la courbe.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="two-column">
+        <StatsTable
+          title="Par actif"
+          rows={
+            groupedStats.asset
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Actif",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "W",
+            },
+            {
+              key: "losses",
+              label: "L",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "winRate",
+              label: "Win %",
+              render: (row) =>
+                formatPercent(
+                  row.winRate
+                ),
+            },
+          ]}
+        />
+
+        <StatsTable
+          title="Par setup"
+          rows={
+            groupedStats.setup
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Setup",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "W",
+            },
+            {
+              key: "losses",
+              label: "L",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "avgR",
+              label: "R moyen",
+              render: (row) =>
+                `${formatNumber(
+                  row.avgR,
+                  2
+                )}R`,
+            },
+          ]}
+        />
+      </div>
+
+      <div className="two-column">
+        <StatsTable
+          title="Par session"
+          rows={
+            groupedStats.session
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Session",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "winRate",
+              label: "Win %",
+              render: (row) =>
+                formatPercent(
+                  row.winRate
+                ),
+            },
+          ]}
+        />
+
+        <StatsTable
+          title="Par timeframe"
+          rows={
+            groupedStats.timeframe
+          }
+          columns={[
+            {
+              key: "name",
+              label: "TF",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "avgR",
+              label: "R moyen",
+              render: (row) =>
+                `${formatNumber(
+                  row.avgR,
+                  2
+                )}R`,
+            },
+          ]}
+        />
+      </div>
+
+      <div className="two-column">
+        <StatsTable
+          title="Par direction"
+          rows={
+            groupedStats.direction
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Direction",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "W",
+            },
+            {
+              key: "losses",
+              label: "L",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+          ]}
+        />
+
+        <StatsTable
+          title="Par sortie"
+          rows={
+            groupedStats.exitType
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Sortie",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "avgR",
+              label: "R moyen",
+              render: (row) =>
+                `${formatNumber(
+                  row.avgR,
+                  2
+                )}R`,
+            },
+          ]}
+        />
+      </div>
+
+      <StatsTable
+        title="Analyse par RR"
+        rows={rrStats}
+        columns={[
+          {
+            key: "name",
+            label: "RR",
+          },
+          {
+            key: "trades",
+            label: "Trades",
+          },
+          {
+            key: "wins",
+            label: "W",
+          },
+          {
+            key: "losses",
+            label: "L",
+          },
+          {
+            key: "breakevens",
+            label: "BE",
+          },
+          {
+            key: "winRate",
+            label: "Win %",
+            render: (row) =>
+              formatPercent(
+                row.winRate
+              ),
+          },
+          {
+            key: "pnl",
+            label: "P/L",
+            render: (row) => (
+              <span
+                className={getResultClass(
+                  row.pnl
+                )}
+              >
+                {formatMoney(
+                  row.pnl
+                )}
+              </span>
+            ),
+          },
+          {
+            key: "avgR",
+            label: "R moyen",
+            render: (row) =>
+              `${formatNumber(
+                row.avgR,
+                2
+              )}R`,
+          },
+        ]}
+      />
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>
+              Performance globale
+            </h2>
+
+            <p>
+              Cette section prend
+              toujours en compte tous
+              les capitaux, actifs et
+              archivés.
+            </p>
+          </div>
+        </div>
+
+        <div className="global-grid">
+          <div>
+            <span>
+              Capital initial total
+            </span>
+
+            <strong>
+              {formatMoney(
+                capitals.reduce(
+                  (sum, capital) =>
+                    sum +
+                    (Number(
+                      capital.initialCapital
+                    ) || 0),
+                  0
+                )
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Balance totale
+            </span>
+
+            <strong>
+              {formatMoney(
+                capitals.reduce(
+                  (sum, capital) =>
+                    sum +
+                    (Number(
+                      capital.currentBalance
+                    ) || 0),
+                  0
+                )
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              P/L total
+            </span>
+
+            <strong
+              className={getResultClass(
+                calculatePerformanceStats(
+                  trades,
+                  capitals.reduce(
+                    (sum, capital) =>
+                      sum +
+                      (Number(
+                        capital.initialCapital
+                      ) || 0),
+                    0
+                  )
+                ).totalPnl
+              )}
+            >
+              {formatMoney(
+                calculatePerformanceStats(
+                  trades,
+                  0
+                ).totalPnl
+              )}
+            </strong>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function JournalPage({
+  trades,
+  capitals,
+  filter,
+  setFilter,
+  onNew,
+  onDelete,
+}) {
+  const filteredTrades =
+    trades
+      .filter(isClosedTrade)
+      .filter((trade) => {
+        if (filter === "all") {
+          return true;
+        }
+
+        return (
+          trade.capitalId ===
+          filter
+        );
+      })
+      .slice()
+      .sort(
+        (a, b) =>
+          getTradeTimestamp(b) -
+          getTradeTimestamp(a)
+      );
+
+  const capitalName = (
+    id
+  ) =>
+    capitals.find(
+      (capital) =>
+        capital.id === id
+    )?.name || "Inconnu";
+
+  return (
+    <div className="page">
+      <div className="page-header-row">
+        <PageTitle
+          icon={BookOpen}
+          title="Journal"
+          subtitle="Historique complet de vos trades."
+        />
+
+        <button
+          className="primary-button"
+          onClick={onNew}
+        >
+          <Plus size={18} />
+          Nouveau trade
+        </button>
+      </div>
+
+      <div className="toolbar">
+        <div className="select-wrapper">
+          <select
+            value={filter}
+            onChange={(event) =>
+              setFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les capitaux
+            </option>
+
+            {capitals.map(
+              (capital) => (
+                <option
+                  key={
+                    capital.id
+                  }
+                  value={
+                    capital.id
+                  }
+                >
+                  {capital.name}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+      </div>
+
+      <section className="panel">
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Capital</th>
+                <th>Actif</th>
+                <th>Direction</th>
+                <th>Entrée</th>
+                <th>SL</th>
+                <th>TP</th>
+                <th>RR</th>
+                <th>Sortie</th>
+                <th>P/L</th>
+                <th>R</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredTrades.length ===
+              0 ? (
+                <tr>
+                  <td
+                    colSpan="12"
+                    className="empty-cell"
+                  >
+                    Aucun trade.
+                  </td>
+                </tr>
+              ) : (
+                filteredTrades.map(
+                  (trade) => {
+                    const pnl =
+                      getTradeNetPnl(
+                        trade
+                      );
+
+                    return (
+                      <tr
+                        key={
+                          trade.id
+                        }
+                      >
+                        <td>
+                          {formatDate(
+                            trade.dateTime
+                          )}
+                        </td>
+
+                        <td>
+                          {
+                            capitalName(
+                              trade.capitalId
+                            )
+                          }
+                        </td>
+
+                        <td>
+                          {trade.asset}
+                        </td>
+
+                        <td>
+                          {trade.direction}
+                        </td>
+
+                        <td>
+                          {trade.entry}
+                        </td>
+
+                        <td>
+                          {
+                            trade.stopLoss
+                          }
+                        </td>
+
+                        <td>
+                          {trade.tp}
+                        </td>
+
+                        <td>
+                          RR
+                          {trade.rr}
+                        </td>
+
+                        <td>
+                          {trade.exitPrice}
+                        </td>
+
+                        <td
+                          className={getResultClass(
+                            pnl
+                          )}
+                        >
+                          {formatMoney(
+                            pnl
+                          )}
+                        </td>
+
+                        <td>
+                          {formatNumber(
+                            getTradeR(
+                              trade
+                            ),
+                            2
+                          )}
+                          R
+                        </td>
+
+                        <td>
+                          <button
+                            className="icon-button danger"
+                            onClick={() =>
+                              onDelete(
+                                trade.id
+                              )
+                            }
+                            title="Supprimer"
+                          >
+                            <Trash2
+                              size={15}
+                            />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CalendarPage({
+  trades,
+}) {
+  const [currentDate, setCurrentDate] =
+    useState(
+      new Date()
+    );
+
+  const year =
+    currentDate.getFullYear();
+
+  const month =
+    currentDate.getMonth();
+
+  const monthName =
+    currentDate.toLocaleDateString(
+      "fr-FR",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
+
+  const monthTrades =
+    useMemo(
+      () =>
+        trades.filter(
+          (trade) => {
+            const date =
+              getTradeDate(
+                trade
+              );
+
+            return (
+              isClosedTrade(
+                trade
+              ) &&
+              date &&
+              date.getFullYear() ===
+                year &&
+              date.getMonth() ===
+                month
+            );
+          }
+        ),
+      [
+        trades,
+        year,
+        month,
+      ]
+    );
+
+  const dailyStats =
+    useMemo(() => {
+      const map = new Map();
+
+      monthTrades.forEach(
+        (trade) => {
+          const date =
+            getTradeDate(
+              trade
+            );
+
+          if (!date) return;
+
+          const key =
+            date
+              .toISOString()
+              .slice(0, 10);
+
+          if (!map.has(key)) {
+            map.set(key, {
+              date,
+              pnl: 0,
+              trades: 0,
+              wins: 0,
+              losses: 0,
+              breakevens: 0,
+              r: 0,
+            });
+          }
+
+          const item =
+            map.get(key);
+
+          const pnl =
+            getTradeNetPnl(
+              trade
+            );
+
+          item.pnl += pnl;
+          item.trades += 1;
+          item.r += getTradeR(
+            trade
+          );
+
+          if (pnl > 0) {
+            item.wins += 1;
+          } else if (
+            pnl < 0
+          ) {
+            item.losses += 1;
+          } else {
+            item.breakevens += 1;
+          }
+        }
+      );
+
+      return Array.from(
+        map.values()
+      ).sort(
+        (a, b) =>
+          a.date - b.date
+      );
+    }, [
+      monthTrades,
+    ]);
+
+  const monthPnl =
+    monthTrades.reduce(
+      (sum, trade) =>
+        sum +
+        getTradeNetPnl(trade),
+      0
+    );
+
+  const monthR =
+    monthTrades.reduce(
+      (sum, trade) =>
+        sum +
+        getTradeR(trade),
+      0
+    );
+
+  const firstDay =
+    new Date(
+      year,
+      month,
+      1
+    ).getDay();
+
+  const mondayOffset =
+    firstDay === 0
+      ? 6
+      : firstDay - 1;
+
+  const daysInMonth =
+    new Date(
+      year,
+      month + 1,
+      0
+    ).getDate();
+
+  const cells = [];
+
+  for (
+    let index = 0;
+    index < mondayOffset;
+    index += 1
+  ) {
+    cells.push(null);
+  }
+
+  for (
+    let day = 1;
+    day <= daysInMonth;
+    day += 1
+  ) {
+    cells.push(day);
+  }
+
+  while (
+    cells.length % 7 !==
+    0
+  ) {
+    cells.push(null);
+  }
+
+  function getDayStats(day) {
+    if (!day) return null;
+
+    return dailyStats.find(
+      (item) =>
+        item.date.getDate() ===
+        day
+    );
+  }
+
+  return (
+    <div className="page">
+      <PageTitle
+        icon={CalendarDays}
+        title="Calendrier"
+        subtitle="Visualisez votre performance jour par jour."
+      />
+
+      <div className="calendar-toolbar">
+        <button
+          className="secondary-button"
+          onClick={() =>
+            setCurrentDate(
+              new Date(
+                year,
+                month - 1,
+                1
+              )
+            )
+          }
+        >
+          ←
+        </button>
+
+        <h2>
+          {monthName}
+        </h2>
+
+        <button
+          className="secondary-button"
+          onClick={() =>
+            setCurrentDate(
+              new Date(
+                year,
+                month + 1,
+                1
+              )
+            )
+          }
+        >
+          →
+        </button>
+      </div>
+
+      <div className="metrics-grid">
+        <MetricCard
+          title="P/L du mois"
+          value={formatMoney(
+            monthPnl
+          )}
+          icon={BarChart3}
+          tone={getResultClass(
+            monthPnl
+          )}
+        />
+
+        <MetricCard
+          title="Trades"
+          value={
+            monthTrades.length
+          }
+          icon={BookOpen}
+        />
+
+        <MetricCard
+          title="R total"
+          value={`${formatNumber(
+            monthR,
+            2
+          )}R`}
+          icon={Calculator}
+        />
+
+        <MetricCard
+          title="Jours actifs"
+          value={
+            dailyStats.length
+          }
+          icon={CalendarDays}
+        />
+      </div>
+
+      <section className="panel">
+        <div className="calendar-grid">
+          {[
+            "Lun",
+            "Mar",
+            "Mer",
+            "Jeu",
+            "Ven",
+            "Sam",
+            "Dim",
+          ].map((day) => (
+            <div
+              className="calendar-weekday"
+              key={day}
+            >
+              {day}
+            </div>
+          ))}
+
+          {cells.map(
+            (day, index) => {
+              const stats =
+                getDayStats(
+                  day
+                );
+
+              return (
+                <div
+                  className={`calendar-day ${
+                    day
+                      ? ""
+                      : "empty"
+                  }`}
+                  key={
+                    `${day}-${index}`
+                  }
+                >
+                  {day && (
+                    <>
+                      <strong>
+                        {day}
+                      </strong>
+
+                      {stats && (
+                        <div>
+                          <span
+                            className={getResultClass(
+                              stats.pnl
+                            )}
+                          >
+                            {formatMoney(
+                              stats.pnl
+                            )}
+                          </span>
+
+                          <small>
+                            {
+                              stats.trades
+                            }{" "}
+                            trade
+                            {stats.trades >
+                            1
+                              ? "s"
+                              : ""}
+                          </small>
+
+                          <small>
+                            {formatNumber(
+                              stats.r,
+                              2
+                            )}
+                            R
+                          </small>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            }
+          )}
+        </div>
+      </section>
+
+      <StatsTable
+        title="Détail des journées"
+        rows={dailyStats}
+        columns={[
+          {
+            key: "date",
+            label: "Date",
+            render: (row) =>
+              row.date.toLocaleDateString(
+                "fr-FR"
+              ),
+          },
+          {
+            key: "trades",
+            label: "Trades",
+          },
+          {
+            key: "wins",
+            label: "W",
+          },
+          {
+            key: "losses",
+            label: "L",
+          },
+          {
+            key: "breakevens",
+            label: "BE",
+          },
+          {
+            key: "pnl",
+            label: "P/L",
+            render: (row) => (
+              <span
+                className={getResultClass(
+                  row.pnl
+                )}
+              >
+                {formatMoney(
+                  row.pnl
+                )}
+              </span>
+            ),
+          },
+          {
+            key: "r",
+            label: "R",
+            render: (row) =>
+              `${formatNumber(
+                row.r,
+                2
+              )}R`,
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+function CalculatorPage({
+  capitals,
+}) {
+  const activeCapitals =
+    capitals.filter(
+      (capital) =>
+        capital.status !==
+        "archived"
+    );
+
+  const [
+    capitalId,
+    setCapitalId,
+  ] = useState(
+    activeCapitals[0]?.id ||
+      ""
+  );
+
+  const [asset, setAsset] =
+    useState("XAUUSD");
+
+  const [
+    direction,
+    setDirection,
+  ] = useState("BUY");
+
+  const [entry, setEntry] =
+    useState("");
+
+  const [stopLoss, setStopLoss] =
+    useState("");
+
+  const [rr, setRR] =
+    useState(2);
+
+  const capital =
+    activeCapitals.find(
+      (item) =>
+        item.id === capitalId
+    );
+
+  const riskMoney =
+    getCapitalRisk(
+      capital
+    );
+
+  const stopPips =
+    calculateStopPips(
+      asset,
+      entry,
+      stopLoss
+    );
+
+  const pipValue =
+    getPipValuePerLot(
+      asset,
+      entry
+    );
+
+  const lot =
+    calculateLot(
+      riskMoney,
+      stopPips,
+      pipValue
+    );
+
+  const tp =
+    calculateTP(
+      direction,
+      entry,
+      stopLoss,
+      rr
+    );
+
+  return (
+    <div className="page">
+      <PageTitle
+        icon={Calculator}
+        title="Calculateur"
+        subtitle="Calculez le risque, le lot et les objectifs sans créer de trade."
+      />
+
+      <div className="calculator-layout">
+        <section className="panel">
+          <div className="form-grid">
+            <div className="field">
+              <label>
+                Capital
+              </label>
+
+              <select
+                value={capitalId}
+                onChange={(event) =>
+                  setCapitalId(
+                    event.target
+                      .value
+                  )
+                }
+              >
+                {activeCapitals.map(
+                  (item) => (
+                    <option
+                      key={
+                        item.id
+                      }
+                      value={
+                        item.id
+                      }
+                    >
+                      {item.name}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="field">
+              <label>
+                Actif
+              </label>
+
+              <select
+                value={asset}
+                onChange={(event) =>
+                  setAsset(
+                    event.target
+                      .value
+                  )
+                }
+              >
+                {ASSETS.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="field">
+              <label>
+                Direction
+              </label>
+
+              <select
+                value={
+                  direction
+                }
+                onChange={(event) =>
+                  setDirection(
+                    event.target
+                      .value
+                  )
+                }
+              >
+                <option value="BUY">
+                  BUY
+                </option>
+
+                <option value="SELL">
+                  SELL
+                </option>
+              </select>
+            </div>
+
+            <div className="field">
+              <label>
+                Entrée
+              </label>
+
+              <input
+                type="number"
+                value={entry}
+                onChange={(event) =>
+                  setEntry(
+                    event.target
+                      .value
+                  )
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>
+                Stop Loss
+              </label>
+
+              <input
+                type="number"
+                value={stopLoss}
+                onChange={(event) =>
+                  setStopLoss(
+                    event.target
+                      .value
+                  )
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>
+                RR
+              </label>
+
+              <select
+                value={rr}
+                onChange={(event) =>
+                  setRR(
+                    Number(
+                      event.target
+                        .value
+                    )
+                  )
+                }
+              >
+                {RR_OPTIONS.map(
+                  (value) => (
+                    <option
+                      key={value}
+                      value={value}
+                    >
+                      RR{value}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel calculator-result">
+          <h2>Résultat</h2>
+
+          <div className="calculator-result-grid">
+            <div>
+              <span>
+                Risque
+              </span>
+
+              <strong>
+                {formatMoney(
+                  riskMoney
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Stop
+              </span>
+
+              <strong>
+                {formatNumber(
+                  stopPips,
+                  1
+                )}{" "}
+                pips
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Valeur pip / lot
+              </span>
+
+              <strong>
+                $
+                {formatNumber(
+                  pipValue,
+                  4
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Lot
+              </span>
+
+              <strong>
+                {formatNumber(
+                  lot,
+                  2
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Take Profit
+              </span>
+
+              <strong>
+                {tp
+                  ? formatNumber(
+                      tp,
+                      asset ===
+                        "USDJPY"
+                        ? 3
+                        : 2
+                    )
+                  : "-"}
+              </strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <StatsTable
+        title="Objectifs RR"
+        rows={RR_OPTIONS.map(
+          (value) => ({
+            id: value,
+            rr: value,
+            tp: calculateTP(
+              direction,
+              entry,
+              stopLoss,
+              value
+            ),
+          })
+        )}
+        columns={[
+          {
+            key: "rr",
+            label: "RR",
+            render: (row) =>
+              `RR${row.rr}`,
+          },
+          {
+            key: "tp",
+            label: "Take Profit",
+            render: (row) =>
+              row.tp
+                ? formatNumber(
+                    row.tp,
+                    asset ===
+                      "USDJPY"
+                      ? 3
+                      : 2
+                  )
+                : "-",
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+function SettingsPage({
+  capitals,
+  trades,
+}) {
+  return (
+    <div className="page">
+      <PageTitle
+        icon={Settings}
+        title="Paramètres"
+        subtitle="Informations générales sur votre journal."
+      />
+
+      <section className="panel">
+        <h2>
+          Données locales
+        </h2>
+
+        <div className="settings-info">
+          <div>
+            <span>
+              Capitaux
+            </span>
+
+            <strong>
+              {capitals.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades
+            </span>
+
+            <strong>
+              {trades.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades clôturés
+            </span>
+
+            <strong>
+              {
+                trades.filter(
+                  isClosedTrade
+                ).length
+              }
+            </strong>
+          </div>
+        </div>
+
+        <p className="settings-note">
+          Les données du journal sont
+          actuellement sauvegardées
+          dans le stockage local du
+          navigateur.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function CapitalModal({
+  open,
+  editingCapitalId,
+  form,
+  setForm,
+  onClose,
+  onSave,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-header">
+          <h2>
+            {editingCapitalId
+              ? "Modifier le capital"
+              : "Nouveau capital"}
+          </h2>
+
+          <button
+            className="icon-button"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="form-grid">
+          <div className="field full">
+            <label>
+              Nom du capital
+            </label>
+
+            <input
+              value={form.name}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  name: event.target
+                    .value,
+                })
+              }
+              placeholder="Capital Test"
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Capital initial
+            </label>
+
+            <input
+              type="number"
+              value={
+                form.initialCapital
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  initialCapital:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Balance actuelle
+            </label>
+
+            <input
+              type="number"
+              value={
+                form.currentBalance
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  currentBalance:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Mode de risque
+            </label>
+
+            <select
+              value={
+                form.riskMode
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  riskMode:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              <option value="percentage">
+                Pourcentage
+              </option>
+
+              <option value="fixed">
+                Montant fixe
+              </option>
+            </select>
+          </div>
+
+          {form.riskMode ===
+          "percentage" ? (
+            <div className="field">
+              <label>
+                Risque %
+              </label>
+
+              <input
+                type="number"
+                step="0.01"
+                value={
+                  form.riskPercent
+                }
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    riskPercent:
+                      event.target
+                        .value,
+                  })
+                }
+              />
+            </div>
+          ) : (
+            <div className="field">
+              <label>
+                Risque fixe
+              </label>
+
+              <input
+                type="number"
+                step="0.01"
+                value={
+                  form.riskAmount
+                }
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    riskAmount:
+                      event.target
+                        .value,
+                  })
+                }
+              />
+            </div>
+          )}
+
+          <div className="field">
+            <label>
+              RR de base
+            </label>
+
+            <select
+              value={
+                form.defaultRR
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  defaultRR:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {RR_OPTIONS.map(
+                (rr) => (
+                  <option
+                    key={rr}
+                    value={rr}
+                  >
+                    RR{rr}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            onClick={onClose}
+          >
+            Annuler
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={onSave}
+          >
+            <Check size={17} />
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TradeModal({
+  open,
+  form,
+  setForm,
+  capitals,
+  onClose,
+  onSave,
+}) {
+  if (!open) return null;
+
+  const activeCapitals =
+    capitals.filter(
+      (capital) =>
+        capital.status !==
+        "archived"
+    );
+
+  const capital =
+    activeCapitals.find(
+      (item) =>
+        item.id ===
+        form.capitalId
+    );
+
+  const riskMoney =
+    getCapitalRisk(capital);
+
+  const entry =
+    Number(form.entry);
+
+  const stopLoss =
+    Number(form.stopLoss);
+
+  const stopPips =
+    calculateStopPips(
+      form.asset,
+      entry,
+      stopLoss
+    );
+
+  const pipValue =
+    getPipValuePerLot(
+      form.asset,
+      entry
+    );
+
+  const lot =
+    calculateLot(
+      riskMoney,
+      stopPips,
+      pipValue
+    );
+
+  const tp =
+    calculateTP(
+      form.direction,
+      entry,
+      stopLoss,
+      form.rr
+    );
+
+  let automaticExit =
+    tp;
+
+  if (
+    form.exitType ===
+    "SL"
+  ) {
+    automaticExit =
+      stopLoss;
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal large">
+        <div className="modal-header">
+          <h2>
+            Nouveau trade
+          </h2>
+
+          <button
+            className="icon-button"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="form-grid">
+          <div className="field">
+            <label>
+              Capital
+            </label>
+
+            <select
+              value={
+                form.capitalId
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  capitalId:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {activeCapitals.map(
+                (capitalItem) => (
+                  <option
+                    key={
+                      capitalItem.id
+                    }
+                    value={
+                      capitalItem.id
+                    }
+                  >
+                    {
+                      capitalItem.name
+                    }
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Actif
+            </label>
+
+            <select
+              value={form.asset}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  asset:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {ASSETS.map(
+                (asset) => (
+                  <option
+                    key={asset}
+                    value={asset}
+                  >
+                    {asset}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Date / heure
+            </label>
+
+            <input
+              type="datetime-local"
+              value={
+                form.dateTime
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  dateTime:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Session
+            </label>
+
+            <select
+              value={
+                form.session
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  session:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {SESSIONS.map(
+                (session) => (
+                  <option
+                    key={session}
+                    value={session}
+                  >
+                    {session}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Direction
+            </label>
+
+            <select
+              value={
+                form.direction
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  direction:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              <option value="BUY">
+                BUY
+              </option>
+
+              <option value="SELL">
+                SELL
+              </option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Timeframe
+            </label>
+
+            <select
+              value={
+                form.timeframe
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  timeframe:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {TIMEFRAMES.map(
+                (tf) => (
+                  <option
+                    key={tf}
+                    value={tf}
+                  >
+                    {tf}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Entrée
+            </label>
+
+            <input
+              type="number"
+              step="any"
+              value={form.entry}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  entry:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Stop Loss
+            </label>
+
+            <input
+              type="number"
+              step="any"
+              value={
+                form.stopLoss
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  stopLoss:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              RR
+            </label>
+
+            <select
+              value={form.rr}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  rr: event.target
+                    .value,
+                })
+              }
+            >
+              {RR_OPTIONS.map(
+                (rr) => (
+                  <option
+                    key={rr}
+                    value={rr}
+                  >
+                    RR{rr}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Type de sortie
+            </label>
+
+            <select
+              value={
+                form.exitType
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  exitType:
+                    event.target
+                      .value,
+                  exitPrice: "",
+                })
+              }
+            >
+              <option value="TP">
+                TP
+              </option>
+
+              <option value="SL">
+                SL
+              </option>
+
+              <option value="BE">
+                BE
+              </option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Prix de sortie
+            </label>
+
+            {form.exitType ===
+            "BE" ? (
+              <input
+                type="number"
+                step="any"
+                value={
+                  form.exitPrice
+                }
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    exitPrice:
+                      event.target
+                        .value,
+                  })
+                }
+                placeholder="Prix réel de sortie"
+              />
+            ) : (
+              <input
+                value={
+                  automaticExit
+                    ? formatNumber(
+                        automaticExit,
+                        form.asset ===
+                          "USDJPY"
+                          ? 3
+                          : 2
+                      )
+                    : ""
+                }
+                readOnly
+              />
+            )}
+          </div>
+
+          <div className="field">
+            <label>
+              Setup
+            </label>
+
+            <select
+              value={
+                form.setup
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  setup:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {SETUPS.map(
+                (setup) => (
+                  <option
+                    key={setup}
+                    value={setup}
+                  >
+                    {setup}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Frais
+            </label>
+
+            <input
+              type="number"
+              step="0.01"
+              value={form.fees}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  fees:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Swap
+            </label>
+
+            <input
+              type="number"
+              step="0.01"
+              value={form.swap}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  swap:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <div className="trade-preview">
+          <div>
+            <span>
+              Risque
+            </span>
+
+            <strong>
+              {formatMoney(
+                riskMoney
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Stop
+            </span>
+
+            <strong>
+              {formatNumber(
+                stopPips,
+                1
+              )}{" "}
+              pips
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Valeur pip
+            </span>
+
+            <strong>
+              $
+              {formatNumber(
+                pipValue,
+                4
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Lot
+            </span>
+
+            <strong>
+              {formatNumber(
+                lot,
+                2
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              TP calculé
+            </span>
+
+            <strong>
+              {tp
+                ? formatNumber(
+                    tp,
+                    form.asset ===
+                      "USDJPY"
+                      ? 3
+                      : 2
+                  )
+                : "-"}
+            </strong>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <div className="field full">
+            <label>
+              Raison d'entrée
+            </label>
+
+            <textarea
+              value={
+                form.entryReason
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  entryReason:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field full">
+            <label>
+              Raison de sortie
+            </label>
+
+            <textarea
+              value={
+                form.exitReason
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  exitReason:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field full">
+            <label>
+              Notes
+            </label>
+
+            <textarea
+              value={form.notes}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  notes:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            onClick={onClose}
+          >
+            Annuler
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={onSave}
+          >
+            <Check size={17} />
+            Enregistrer le trade
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({
+  activePage,
+  navigate,
+  open,
+}) {
+  const items = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      id: "journal",
+      label: "Journal",
+      icon: BookOpen,
+    },
+    {
+      id: "capitals",
+      label: "Capitaux",
+      icon: WalletCards,
+    },
+    {
+      id: "calendar",
+      label: "Calendrier",
+      icon: CalendarDays,
+    },
+    {
+      id: "calculator",
+      label: "Calculateur",
+      icon: Calculator,
+    },
+    {
+      id: "settings",
+      label: "Paramètres",
+      icon: Settings,
+    },
+  ];
+
+  return (
+    <aside
+      className={`sidebar ${
+        open ? "open" : ""
+      }`}
+    >
+      <div className="brand">
+        <div className="brand-mark">
+          A
+        </div>
+
+        <div>
+          <strong>
+            ARCH
+          </strong>
+
+          <span>
+            Trading Journal
+          </span>
+        </div>
+      </div>
+
+      <nav>
+        {items.map(
+          ({
+            id,
+            label,
+            icon: Icon,
+          }) => (
+            <button
+              key={id}
+              className={
+                activePage === id
+                  ? "nav-item active"
+                  : "nav-item"
+              }
+              onClick={() =>
+                navigate(id)
+              }
+            >
+              <Icon size={19} />
+              <span>
+                {label}
+              </span>
+            </button>
+          )
+        )}
+      </nav>
+    </aside>
+  );
+}
+
+function Topbar({
+  onMenu,
+  title,
+}) {
+  return (
+    <header className="topbar">
+      <button
+        className="mobile-menu"
+        onClick={onMenu}
+      >
+        <ChevronDown
+          size={20}
+        />
+      </button>
+
+      <div>
+        <span>
+          Trading Journal
+        </span>
+
+        <strong>
+          {title}
+        </strong>
+      </div>
+    </header>
+  );
+}
 
 export default function App() {
-  const [activePage, setActivePage] =
-    useState("dashboard");
+  const [
+    activePage,
+    setActivePage,
+  ] = useState(
+    "dashboard"
+  );
 
-  const [sidebarOpen, setSidebarOpen] =
-    useState(false);
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(false);
 
   const [capitals, setCapitals] =
     useState(() => {
@@ -1226,67 +4182,74 @@ export default function App() {
       }
     });
 
-  /*
-    IMPORTANT :
-    "" = Tous les capitaux
-    id = capital individuel
-  */
-  const [dashboardCapitalFilter, setDashboardCapitalFilter] =
-    useState("");
+  const [
+    dashboardCapitalFilter,
+    setDashboardCapitalFilter,
+  ] = useState("all");
 
-  const [capitalModalOpen, setCapitalModalOpen] =
-    useState(false);
+  const [
+    capitalModalOpen,
+    setCapitalModalOpen,
+  ] = useState(false);
 
-  const [editingCapitalId, setEditingCapitalId] =
-    useState(null);
+  const [
+    editingCapitalId,
+    setEditingCapitalId,
+  ] = useState(null);
 
-  const [capitalForm, setCapitalForm] =
-    useState({
-      name: "",
-      initialCapital: "",
-      currentBalance: "",
-      riskMode: "percentage",
-      riskPercent: "1",
-      riskAmount: "",
-      defaultRR: "2",
-    });
+  const [
+    capitalForm,
+    setCapitalForm,
+  ] = useState({
+    name: "",
+    initialCapital: "",
+    currentBalance: "",
+    riskMode: "percentage",
+    riskPercent: "1",
+    riskAmount: "",
+    defaultRR: "2",
+  });
 
-  const [tradeModalOpen, setTradeModalOpen] =
-    useState(false);
+  const [
+    tradeModalOpen,
+    setTradeModalOpen,
+  ] = useState(false);
 
-  const [tradeForm, setTradeForm] =
-    useState({
-      capitalId: "",
-      asset: "XAUUSD",
-      dateTime: "",
-      session: "New York",
-      direction: "BUY",
-      timeframe: "M15",
-      entry: "",
-      stopLoss: "",
-      rr: "2",
-      exitType: "TP",
-      exitPrice: "",
-      fees: "",
-      swap: "",
-      setup: "ZS OA",
-      emotion: "",
-      planAdherence: "Oui",
-      mistakes: "",
-      entryReason: "",
-      exitReason: "",
-      notes: "",
-    });
+  const [
+    tradeForm,
+    setTradeForm,
+  ] = useState({
+    capitalId: "",
+    asset: "XAUUSD",
+    dateTime: "",
+    session: "New York",
+    direction: "BUY",
+    timeframe: "M15",
+    entry: "",
+    stopLoss: "",
+    rr: "2",
+    exitType: "TP",
+    exitPrice: "",
+    fees: "",
+    swap: "",
+    setup: "ZS OA",
+    emotion: "",
+    planAdherence: "Oui",
+    mistakes: "",
+    entryReason: "",
+    exitReason: "",
+    notes: "",
+  });
 
-  const [tradeCapitalFilter, setTradeCapitalFilter] =
-    useState("all");
+  const [
+    tradeCapitalFilter,
+    setTradeCapitalFilter,
+  ] = useState("all");
 
-  const [notification, setNotification] =
-    useState(null);
-
-  /* =======================================================
-     PERSISTENCE
-  ======================================================= */
+  const [
+    notification,
+    setNotification,
+  ] = useState(null);
 
   useEffect(() => {
     localStorage.setItem(
@@ -1303,7 +4266,9 @@ export default function App() {
   }, [trades]);
 
   useEffect(() => {
-    if (!notification) return;
+    if (!notification) {
+      return;
+    }
 
     const timer =
       setTimeout(() => {
@@ -1315,28 +4280,41 @@ export default function App() {
   }, [notification]);
 
   /*
-    Si le filtre sélectionné n'existe plus,
-    on revient sur "Tous les capitaux".
-  */
+   * IMPORTANT :
+   * On conserve "all" comme valeur
+   * valide du filtre Dashboard.
+   */
   useEffect(() => {
     if (
-      dashboardCapitalFilter !== "" &&
-      !capitals.some(
+      dashboardCapitalFilter ===
+      "all"
+    ) {
+      return;
+    }
+
+    if (!capitals.length) {
+      setDashboardCapitalFilter(
+        "all"
+      );
+      return;
+    }
+
+    const exists =
+      capitals.some(
         (capital) =>
           capital.id ===
           dashboardCapitalFilter
-      )
-    ) {
-      setDashboardCapitalFilter("");
+      );
+
+    if (!exists) {
+      setDashboardCapitalFilter(
+        "all"
+      );
     }
   }, [
     capitals,
     dashboardCapitalFilter,
   ]);
-
-  /* =======================================================
-     NAVIGATION
-  ======================================================= */
 
   function showNotification(
     message,
@@ -1352,30 +4330,6 @@ export default function App() {
     setActivePage(page);
     setSidebarOpen(false);
   }
-
-  /* =======================================================
-     CAPITALS
-  ======================================================= */
-
-  const activeCapitals = useMemo(
-    () =>
-      capitals.filter(
-        (capital) =>
-          capital.status !==
-          "archived"
-      ),
-    [capitals]
-  );
-
-  const archivedCapitals = useMemo(
-    () =>
-      capitals.filter(
-        (capital) =>
-          capital.status ===
-          "archived"
-      ),
-    [capitals]
-  );
 
   function openNewCapitalModal() {
     setEditingCapitalId(null);
@@ -1403,9 +4357,11 @@ export default function App() {
     setCapitalForm({
       name: capital.name || "",
       initialCapital:
-        capital.initialCapital ?? "",
+        capital.initialCapital ??
+        "",
       currentBalance:
-        capital.currentBalance ?? "",
+        capital.currentBalance ??
+        "",
       riskMode:
         capital.riskMode ||
         "percentage",
@@ -1413,7 +4369,8 @@ export default function App() {
         capital.riskPercent ??
         "1",
       riskAmount:
-        capital.riskAmount ?? "",
+        capital.riskAmount ??
+        "",
       defaultRR:
         capital.defaultRR ??
         "2",
@@ -1433,14 +4390,16 @@ export default function App() {
 
     if (!name) {
       showNotification(
-        "Le nom du capital est obligatoire.",
+        "Veuillez donner un nom au capital.",
         "error"
       );
       return;
     }
 
     if (
-      !Number.isFinite(initial) ||
+      !Number.isFinite(
+        initial
+      ) ||
       initial <= 0
     ) {
       showNotification(
@@ -1452,88 +4411,32 @@ export default function App() {
 
     if (
       capitalForm.riskMode ===
-        "percentage" &&
-      Number(
-        capitalForm.riskPercent
-      ) <= 0
+      "percentage"
     ) {
-      showNotification(
-        "Le risque en pourcentage doit être supérieur à 0.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      capitalForm.riskMode ===
-        "fixed" &&
-      Number(
-        capitalForm.riskAmount
-      ) <= 0
-    ) {
-      showNotification(
-        "Le risque fixe doit être supérieur à 0.",
-        "error"
-      );
-      return;
-    }
-
-    const existing =
-      editingCapitalId
-        ? capitals.find(
-            (capital) =>
-              capital.id ===
-              editingCapitalId
-          )
-        : null;
-
-    const currentBalance =
-      capitalForm.currentBalance !==
-        "" &&
-      capitalForm.currentBalance !==
-        null
-        ? Number(
-            capitalForm.currentBalance
-          )
-        : existing
-        ? Number(
-            existing.currentBalance
-          )
-        : initial;
-
-    const capitalData = {
-      id:
-        editingCapitalId ||
-        createId("capital"),
-      name,
-      initialCapital: initial,
-      currentBalance:
-        Number.isFinite(
-          currentBalance
-        )
-          ? currentBalance
-          : initial,
-      riskMode:
-        capitalForm.riskMode,
-      riskPercent:
+      if (
         Number(
           capitalForm.riskPercent
-        ) || 0,
-      riskAmount:
+        ) <= 0
+      ) {
+        showNotification(
+          "Le risque en pourcentage doit être supérieur à 0.",
+          "error"
+        );
+        return;
+      }
+    } else {
+      if (
         Number(
           capitalForm.riskAmount
-        ) || 0,
-      defaultRR:
-        Number(
-          capitalForm.defaultRR
-        ) || 2,
-      status:
-        existing?.status ||
-        "active",
-      createdAt:
-        existing?.createdAt ||
-        new Date().toISOString(),
-    };
+        ) <= 0
+      ) {
+        showNotification(
+          "Le risque fixe doit être supérieur à 0.",
+          "error"
+        );
+        return;
+      }
+    }
 
     if (editingCapitalId) {
       setCapitals(
@@ -1542,39 +4445,104 @@ export default function App() {
             (capital) =>
               capital.id ===
               editingCapitalId
-                ? capitalData
+                ? {
+                    ...capital,
+                    name,
+                    initialCapital:
+                      initial,
+                    currentBalance:
+                      Number(
+                        capitalForm.currentBalance
+                      ) ||
+                      0,
+                    riskMode:
+                      capitalForm.riskMode,
+                    riskPercent:
+                      Number(
+                        capitalForm.riskPercent
+                      ) || 0,
+                    riskAmount:
+                      Number(
+                        capitalForm.riskAmount
+                      ) || 0,
+                    defaultRR:
+                      Number(
+                        capitalForm.defaultRR
+                      ) || 2,
+                  }
                 : capital
           )
       );
 
       showNotification(
-        "Capital modifié avec succès."
+        "Capital modifié."
       );
     } else {
+      const capital = {
+        id: createId(
+          "capital"
+        ),
+        name,
+        initialCapital:
+          initial,
+        currentBalance:
+          Number(
+            capitalForm.currentBalance
+          ) || initial,
+        riskMode:
+          capitalForm.riskMode,
+        riskPercent:
+          Number(
+            capitalForm.riskPercent
+          ) || 0,
+        riskAmount:
+          Number(
+            capitalForm.riskAmount
+          ) || 0,
+        defaultRR:
+          Number(
+            capitalForm.defaultRR
+          ) || 2,
+        status: "active",
+        createdAt:
+          new Date().toISOString(),
+      };
+
       setCapitals(
         (current) => [
           ...current,
-          capitalData,
+          capital,
         ]
       );
 
+      /*
+       * Si aucun capital n'existait
+       * auparavant, on sélectionne
+       * automatiquement celui-ci.
+       */
+      if (
+        dashboardCapitalFilter ===
+        "all"
+      ) {
+        setDashboardCapitalFilter(
+          capital.id
+        );
+      }
+
       showNotification(
-        "Capital créé avec succès."
+        "Capital créé."
       );
     }
 
     setCapitalModalOpen(false);
   }
 
-  function archiveCapital(
-    capitalId
-  ) {
+  function archiveCapital(id) {
     setCapitals(
       (current) =>
         current.map(
           (capital) =>
-            capital.id ===
-            capitalId
+            capital.id === id
               ? {
                   ...capital,
                   status:
@@ -1589,18 +4557,16 @@ export default function App() {
     );
   }
 
-  function restoreCapital(
-    capitalId
-  ) {
+  function restoreCapital(id) {
     setCapitals(
       (current) =>
         current.map(
           (capital) =>
-            capital.id ===
-            capitalId
+            capital.id === id
               ? {
                   ...capital,
-                  status: "active",
+                  status:
+                    "active",
                 }
               : capital
         )
@@ -1611,14 +4577,11 @@ export default function App() {
     );
   }
 
-  function deleteCapital(
-    capitalId
-  ) {
+  function deleteCapital(id) {
     const linkedTrades =
       trades.some(
         (trade) =>
-          trade.capitalId ===
-          capitalId
+          trade.capitalId === id
       );
 
     if (linkedTrades) {
@@ -1641,41 +4604,73 @@ export default function App() {
       (current) =>
         current.filter(
           (capital) =>
-            capital.id !==
-            capitalId
+            capital.id !== id
         )
     );
+
+    if (
+      dashboardCapitalFilter ===
+      id
+    ) {
+      setDashboardCapitalFilter(
+        "all"
+      );
+    }
 
     showNotification(
       "Capital supprimé."
     );
   }
 
-  /* =======================================================
-     TRADES
-  ======================================================= */
-
   function openNewTradeModal() {
-    const defaultCapital =
+    const activeCapitals =
+      capitals.filter(
+        (capital) =>
+          capital.status !==
+          "archived"
+      );
+
+    if (
+      activeCapitals.length ===
+      0
+    ) {
+      showNotification(
+        "Créez d'abord un capital actif.",
+        "error"
+      );
+      return;
+    }
+
+    const capital =
       activeCapitals[0];
+
+    const now =
+      new Date();
+
+    const localDate =
+      new Date(
+        now.getTime() -
+          now.getTimezoneOffset() *
+            60000
+      )
+        .toISOString()
+        .slice(0, 16);
 
     setTradeForm({
       capitalId:
-        defaultCapital?.id ||
-        "",
+        capital.id,
       asset: "XAUUSD",
       dateTime:
-        new Date()
-          .toISOString()
-          .slice(0, 16),
+        localDate,
       session: "New York",
       direction: "BUY",
       timeframe: "M15",
       entry: "",
       stopLoss: "",
-      rr:
-        defaultCapital?.defaultRR ||
-        "2",
+      rr: String(
+        capital.defaultRR ||
+          2
+      ),
       exitType: "TP",
       exitPrice: "",
       fees: "",
@@ -1689,197 +4684,12 @@ export default function App() {
       notes: "",
     });
 
-    setTradeModalOpen(true);
+    setTradeModalOpen(
+      true
+    );
   }
-
-  const selectedTradeCapital =
-    capitals.find(
-      (capital) =>
-        capital.id ===
-        tradeForm.capitalId
-    );
-
-  const tradeRisk =
-    getCapitalRisk(
-      selectedTradeCapital
-    );
-
-  const tradeRiskPercent =
-    getCapitalRiskPercent(
-      selectedTradeCapital
-    );
-
-  const tradeEntry =
-    Number(tradeForm.entry) || 0;
-
-  const tradeSL =
-    Number(
-      tradeForm.stopLoss
-    ) || 0;
-
-  const tradeRR =
-    Number(tradeForm.rr) || 1;
-
-  const tradeTP =
-    calculateTP(
-      tradeForm.direction,
-      tradeEntry,
-      tradeSL,
-      tradeRR
-    );
-
-  const tradeStopPips =
-    calculateStopPips(
-      tradeForm.asset,
-      tradeEntry,
-      tradeSL
-    );
-
-  const tradePipValue =
-    getPipValuePerLot(
-      tradeForm.asset,
-      tradeEntry
-    );
-
-  const tradeLot =
-    calculateLot(
-      tradeRisk,
-      tradeStopPips,
-      tradePipValue
-    );
-
-  let tradeExitPrice = 0;
-
-  if (
-    tradeForm.exitType ===
-    "TP"
-  ) {
-    tradeExitPrice = tradeTP;
-  } else if (
-    tradeForm.exitType ===
-    "SL"
-  ) {
-    tradeExitPrice = tradeSL;
-  } else {
-    tradeExitPrice =
-      Number(
-        tradeForm.exitPrice
-      ) || 0;
-  }
-
-  const tradeResultPips =
-    tradeEntry &&
-    tradeExitPrice
-      ? calculateDirectionalPips(
-          tradeForm.asset,
-          tradeForm.direction,
-          tradeEntry,
-          tradeExitPrice
-        )
-      : 0;
-
-  const tradeGrossResult =
-    tradeResultPips *
-    tradeLot *
-    tradePipValue;
-
-  const tradeFees =
-    Number(
-      tradeForm.fees
-    ) || 0;
-
-  const tradeSwap =
-    Number(
-      tradeForm.swap
-    ) || 0;
-
-  const tradeNetResult =
-    tradeGrossResult -
-    tradeFees +
-    tradeSwap;
-
-  const tradeResultR =
-    tradeRisk > 0
-      ? tradeNetResult /
-        tradeRisk
-      : 0;
 
   function saveTrade() {
-    if (
-      !tradeForm.capitalId
-    ) {
-      showNotification(
-        "Sélectionne un capital.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      !Number.isFinite(
-        tradeEntry
-      ) ||
-      tradeEntry <= 0
-    ) {
-      showNotification(
-        "Le prix d'entrée est obligatoire.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      !Number.isFinite(
-        tradeSL
-      ) ||
-      tradeSL <= 0
-    ) {
-      showNotification(
-        "Le Stop Loss est obligatoire.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      tradeStopPips <= 0
-    ) {
-      showNotification(
-        "La distance entre l'entrée et le Stop Loss doit être supérieure à 0.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      tradeLot <= 0
-    ) {
-      showNotification(
-        "Le lot calculé est nul. Vérifie le risque, l'entrée et le SL.",
-        "error"
-      );
-      return;
-    }
-
-    if (
-      tradeForm.exitType ===
-        "BE" &&
-      (!Number.isFinite(
-        Number(
-          tradeForm.exitPrice
-        )
-      ) ||
-        Number(
-          tradeForm.exitPrice
-        ) <= 0)
-    ) {
-      showNotification(
-        "Entre le prix réel de sortie pour un BE.",
-        "error"
-      );
-      return;
-    }
-
     const capital =
       capitals.find(
         (item) =>
@@ -1889,129 +4699,221 @@ export default function App() {
 
     if (!capital) {
       showNotification(
-        "Capital introuvable.",
+        "Capital invalide.",
         "error"
       );
       return;
     }
 
-    const trade = {
-      id: createId("trade"),
+    const entry =
+      Number(
+        tradeForm.entry
+      );
 
+    const stopLoss =
+      Number(
+        tradeForm.stopLoss
+      );
+
+    if (
+      !Number.isFinite(
+        entry
+      ) ||
+      !Number.isFinite(
+        stopLoss
+      ) ||
+      entry <= 0 ||
+      stopLoss <= 0
+    ) {
+      showNotification(
+        "Veuillez renseigner une entrée et un Stop Loss valides.",
+        "error"
+      );
+      return;
+    }
+
+    const stopPips =
+      calculateStopPips(
+        tradeForm.asset,
+        entry,
+        stopLoss
+      );
+
+    if (stopPips <= 0) {
+      showNotification(
+        "Le Stop Loss doit être différent du prix d'entrée.",
+        "error"
+      );
+      return;
+    }
+
+    const riskMoney =
+      getCapitalRisk(
+        capital
+      );
+
+    const riskPercent =
+      getCapitalRiskPercent(
+        capital
+      );
+
+    const pipValue =
+      getPipValuePerLot(
+        tradeForm.asset,
+        entry
+      );
+
+    const lot =
+      calculateLot(
+        riskMoney,
+        stopPips,
+        pipValue
+      );
+
+    if (lot <= 0) {
+      showNotification(
+        "Le lot calculé est invalide. Vérifiez le risque et le Stop Loss.",
+        "error"
+      );
+      return;
+    }
+
+    const tp =
+      calculateTP(
+        tradeForm.direction,
+        entry,
+        stopLoss,
+        tradeForm.rr
+      );
+
+    let exitPrice = 0;
+
+    if (
+      tradeForm.exitType ===
+      "TP"
+    ) {
+      exitPrice = tp;
+    } else if (
+      tradeForm.exitType ===
+      "SL"
+    ) {
+      exitPrice = stopLoss;
+    } else {
+      exitPrice =
+        Number(
+          tradeForm.exitPrice
+        );
+
+      if (
+        !Number.isFinite(
+          exitPrice
+        ) ||
+        exitPrice <= 0
+      ) {
+        showNotification(
+          "Pour une sortie BE, indiquez le prix réel de sortie.",
+          "error"
+        );
+        return;
+      }
+    }
+
+    const resultPips =
+      calculateDirectionalPips(
+        tradeForm.asset,
+        tradeForm.direction,
+        entry,
+        exitPrice
+      );
+
+    const grossPnl =
+      resultPips *
+      lot *
+      pipValue;
+
+    const fees =
+      Number(
+        tradeForm.fees
+      ) || 0;
+
+    const swap =
+      Number(
+        tradeForm.swap
+      ) || 0;
+
+    const netPnl =
+      grossPnl -
+      fees +
+      swap;
+
+    const resultR =
+      riskMoney > 0
+        ? netPnl /
+          riskMoney
+        : 0;
+
+    const trade = {
+      id: createId(
+        "trade"
+      ),
       capitalId:
         tradeForm.capitalId,
-
       asset:
         tradeForm.asset,
-
       dateTime:
         tradeForm.dateTime,
-
       session:
         tradeForm.session,
-
       direction:
         tradeForm.direction,
-
       timeframe:
         tradeForm.timeframe,
-
-      entry:
-        tradeEntry,
-
-      stopLoss:
-        tradeSL,
-
+      entry,
+      stopLoss,
       rr:
-        tradeRR,
-
-      tp:
-        tradeTP,
-
-      stopPips:
-        tradeStopPips,
-
-      pipValue:
-        tradePipValue,
-
-      lot:
-        tradeLot,
-
-      riskMoney:
-        tradeRisk,
-
-      riskPercent:
-        tradeRiskPercent,
-
+        Number(
+          tradeForm.rr
+        ),
+      tp,
+      stopPips,
+      pipValue,
+      lot,
+      riskMoney,
+      riskPercent,
       exitType:
         tradeForm.exitType,
-
-      exitPrice:
-        tradeExitPrice,
-
-      grossPnl:
-        tradeGrossResult,
-
-      fees:
-        tradeFees,
-
-      swap:
-        tradeSwap,
-
-      pnl:
-        tradeNetResult,
-
-      resultPips:
-        tradeResultPips,
-
-      resultR:
-        tradeResultR,
-
+      exitPrice,
+      grossPnl,
+      fees,
+      swap,
+      pnl: netPnl,
+      resultPips,
+      resultR,
       result:
-        tradeNetResult > 0
-          ? "WIN"
-          : tradeNetResult < 0
-          ? "LOSS"
+        netPnl > 0
+          ? "Win"
+          : netPnl < 0
+          ? "Loss"
           : "BE",
-
       setup:
         tradeForm.setup,
-
       emotion:
         tradeForm.emotion,
-
       planAdherence:
         tradeForm.planAdherence,
-
       mistakes:
         tradeForm.mistakes,
-
       entryReason:
         tradeForm.entryReason,
-
       exitReason:
         tradeForm.exitReason,
-
       notes:
         tradeForm.notes,
-
       status: "closed",
-
       createdAt:
         new Date().toISOString(),
-
-      capitalRiskSnapshot: {
-        riskMode:
-          capital.riskMode,
-        riskPercent:
-          getCapitalRiskPercent(
-            capital
-          ),
-        riskAmount:
-          getCapitalRisk(
-            capital
-          ),
-      },
+      capitalRiskSnapshot:
+        riskMoney,
     };
 
     setTrades(
@@ -2021,6 +4923,10 @@ export default function App() {
       ]
     );
 
+    /*
+     * Le P/L du trade est ajouté
+     * au solde du capital concerné.
+     */
     setCapitals(
       (current) =>
         current.map(
@@ -2030,44 +4936,57 @@ export default function App() {
               ? {
                   ...item,
                   currentBalance:
-                    Number(
+                    (Number(
                       item.currentBalance
-                    ) +
-                    tradeNetResult,
+                    ) || 0) +
+                    netPnl,
                 }
               : item
         )
     );
 
-    setTradeModalOpen(false);
+    setTradeModalOpen(
+      false
+    );
 
     showNotification(
-      "Trade enregistré avec succès."
+      `Trade enregistré : ${formatMoney(
+        netPnl
+      )}`
     );
   }
 
-  function deleteTrade(
-    tradeId
-  ) {
+  function deleteTrade(id) {
     const trade =
       trades.find(
         (item) =>
-          item.id ===
-          tradeId
+          item.id === id
       );
 
-    if (!trade) return;
+    if (!trade) {
+      return;
+    }
 
     if (
       !window.confirm(
-        "Supprimer ce trade ? Le P&L sera retiré du capital."
+        "Supprimer ce trade ? Le P/L sera retiré du capital concerné."
       )
     ) {
       return;
     }
 
     const pnl =
-      getTradeNetPnl(trade);
+      getTradeNetPnl(
+        trade
+      );
+
+    setTrades(
+      (current) =>
+        current.filter(
+          (item) =>
+            item.id !== id
+        )
+    );
 
     setCapitals(
       (current) =>
@@ -2078,5428 +4997,192 @@ export default function App() {
               ? {
                   ...capital,
                   currentBalance:
-                    Number(
+                    (Number(
                       capital.currentBalance
-                    ) - pnl,
+                    ) || 0) -
+                    pnl,
                 }
               : capital
         )
     );
 
-    setTrades(
-      (current) =>
-        current.filter(
-          (item) =>
-            item.id !==
-            tradeId
-        )
-    );
-
     showNotification(
-      "Trade supprimé et capital recalculé."
+      "Trade supprimé."
     );
   }
 
-  /* =======================================================
-     DASHBOARD DATA
-  ======================================================= */
-
-  const closedTrades =
-    useMemo(
-      () =>
-        trades.filter(
-          isClosedTrade
-        ),
-      [trades]
-    );
-
-  /*
-    FILTRE DU DASHBOARD
-
-    "" = TOUS LES CAPITAUX
-    id = CAPITAL INDIVIDUEL
-  */
-
-  const dashboardTrades =
-    useMemo(() => {
-      if (
-        dashboardCapitalFilter ===
-        ""
-      ) {
-        return closedTrades;
-      }
-
-      return closedTrades.filter(
-        (trade) =>
-          trade.capitalId ===
-          dashboardCapitalFilter
-      );
-    }, [
-      closedTrades,
-      dashboardCapitalFilter,
-    ]);
-
-  const dashboardSelectedCapital =
-    useMemo(
-      () =>
-        capitals.find(
-          (capital) =>
-            capital.id ===
-            dashboardCapitalFilter
-        ),
-      [
-        capitals,
-        dashboardCapitalFilter,
-      ]
-    );
-
-  const dashboardInitialCapital =
-    useMemo(() => {
-      if (
-        dashboardCapitalFilter ===
-        ""
-      ) {
-        return capitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.initialCapital
-            ) || 0),
-          0
-        );
-      }
-
-      return (
-        Number(
-          dashboardSelectedCapital?.initialCapital
-        ) || 0
-      );
-    }, [
-      capitals,
-      dashboardCapitalFilter,
-      dashboardSelectedCapital,
-    ]);
-
-  const dashboardCurrentBalance =
-    useMemo(() => {
-      if (
-        dashboardCapitalFilter ===
-        ""
-      ) {
-        return capitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.currentBalance
-            ) || 0),
-          0
-        );
-      }
-
-      return (
-        Number(
-          dashboardSelectedCapital?.currentBalance
-        ) || 0
-      );
-    }, [
-      capitals,
-      dashboardCapitalFilter,
-      dashboardSelectedCapital,
-    ]);
-
-  const dashboardStats =
-    useMemo(
-      () =>
-        calculatePerformanceStats(
-          dashboardTrades,
-          dashboardInitialCapital
-        ),
-      [
-        dashboardTrades,
-        dashboardInitialCapital,
-      ]
-    );
-
-  /*
-    Performance globale :
-    TOUJOURS tous les capitaux.
-    Actifs + archivés.
-  */
-
-  const globalTrades =
-    closedTrades;
-
-  const globalInitialCapital =
-    useMemo(
-      () =>
-        capitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.initialCapital
-            ) || 0),
-          0
-        ),
-      [capitals]
-    );
-
-  const globalCurrentBalance =
-    useMemo(
-      () =>
-        capitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.currentBalance
-            ) || 0),
-          0
-        ),
-      [capitals]
-    );
-
-  const globalStats =
-    useMemo(
-      () =>
-        calculatePerformanceStats(
-          globalTrades,
-          globalInitialCapital
-        ),
-      [
-        globalTrades,
-        globalInitialCapital,
-      ]
-    );
-
-  const dashboardGroupedAsset =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "asset"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardGroupedSetup =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "setup"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardGroupedSession =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "session"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardGroupedTimeframe =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "timeframe"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardGroupedDirection =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "direction"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardGroupedExit =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          dashboardTrades,
-          "exitType"
-        ),
-      [dashboardTrades]
-    );
-
-  const dashboardRRStats =
-    useMemo(
-      () =>
-        buildRRStats(
-          dashboardTrades
-        ),
-      [dashboardTrades]
-    );
-
-  const globalGroupedAsset =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "asset"
-        ),
-      [globalTrades]
-    );
-
-  const globalGroupedSetup =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "setup"
-        ),
-      [globalTrades]
-    );
-
-  const globalGroupedSession =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "session"
-        ),
-      [globalTrades]
-    );
-
-  const globalGroupedTimeframe =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "timeframe"
-        ),
-      [globalTrades]
-    );
-
-  const globalGroupedDirection =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "direction"
-        ),
-      [globalTrades]
-    );
-
-  const globalGroupedExit =
-    useMemo(
-      () =>
-        buildGroupedStats(
-          globalTrades,
-          "exitType"
-        ),
-      [globalTrades]
-    );
-
-  const globalRRStats =
-    useMemo(
-      () =>
-        buildRRStats(
-          globalTrades
-        ),
-      [globalTrades]
-    );
-
-  /* =======================================================
-     RENDER
-  ======================================================= */
+  const pageTitles = {
+    dashboard: "Dashboard",
+    journal: "Journal",
+    capitals: "Capitaux",
+    calendar: "Calendrier",
+    calculator: "Calculateur",
+    settings: "Paramètres",
+  };
 
   function renderPage() {
-    switch (activePage) {
+    switch (
+      activePage
+    ) {
       case "dashboard":
-        return <DashboardPage />;
-
-      case "journal":
-        return <JournalPage />;
-
-      case "capitals":
-        return <CapitalPage />;
-
-      case "calendar":
-        return <CalendarPage />;
-
-      case "calculator":
-        return <CalculatorPage />;
-
-      case "settings":
-        return <SettingsPage />;
-
-      default:
-        return <DashboardPage />;
-    }
-  }
-
-  /* =======================================================
-     DASHBOARD PAGE
-  ======================================================= */
-
-  function DashboardPage() {
-    const selectedName =
-      dashboardCapitalFilter === ""
-        ? "Tous les capitaux"
-        : dashboardSelectedCapital
-        ? dashboardSelectedCapital.name
-        : "Capital";
-
-    return (
-      <>
-        <PageTitle
-          title="Dashboard"
-          subtitle="Vue complète de tes performances de trading"
-          action={
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "5px",
-              }}
-            >
-              <label style={styles.label}>
-                Capital analysé
-              </label>
-
-              <select
-                value={
-                  dashboardCapitalFilter
-                }
-                onChange={(event) =>
-                  setDashboardCapitalFilter(
-                    event.target.value
-                  )
-                }
-                style={{
-                  ...styles.input,
-                  width: "260px",
-                }}
-              >
-                <option value="">
-                  Tous les capitaux
-                </option>
-
-                {capitals.map(
-                  (capital) => (
-                    <option
-                      key={capital.id}
-                      value={capital.id}
-                    >
-                      {capital.name}
-                      {capital.status ===
-                      "archived"
-                        ? " — Archivé"
-                        : ""}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-          }
-        />
-
-        {/* =================================================
-            VUE DU CAPITAL ANALYSÉ
-        ================================================= */}
-
-        <div
-          style={{
-            ...styles.sectionHeader,
-            marginTop: "4px",
-          }}
-        >
-          <div>
-            <h2 style={styles.sectionTitle}>
-              Capital analysé :{" "}
-              {selectedName}
-            </h2>
-
-            <p
-              style={styles.sectionSubtitle}
-            >
-              {dashboardCapitalFilter ===
-              ""
-                ? "Calcul basé sur tous les capitaux actifs et archivés."
-                : "Calcul basé uniquement sur le capital sélectionné."}
-            </p>
-          </div>
-        </div>
-
-        <div style={styles.grid4}>
-          <MetricCard
-            label="Balance actuelle"
-            value={formatMoney(
-              dashboardCurrentBalance
-            )}
-          />
-
-          <MetricCard
-            label="P&L"
-            value={formatMoney(
-              dashboardStats.totalPnl
-            )}
-            valueColor={getResultColor(
-              dashboardStats.totalPnl
-            )}
-          />
-
-          <MetricCard
-            label="Rendement"
-            value={formatPercent(
-              dashboardStats.pnlPercent
-            )}
-            valueColor={getResultColor(
-              dashboardStats.pnlPercent
-            )}
-          />
-
-          <MetricCard
-            label="Trades"
-            value={
-              dashboardStats.trades
+        return (
+          <DashboardPage
+            capitals={capitals}
+            trades={trades}
+            selectedCapitalId={
+              dashboardCapitalFilter
+            }
+            setSelectedCapitalId={
+              setDashboardCapitalFilter
             }
           />
-
-          <MetricCard
-            label="Win Rate"
-            value={formatPercent(
-              dashboardStats.winRate
-            )}
-          />
-
-          <MetricCard
-            label="Profit Factor"
-            value={
-              Number.isFinite(
-                dashboardStats.profitFactor
-              )
-                ? formatNumber(
-                    dashboardStats.profitFactor
-                  )
-                : "∞"
-            }
-          />
-
-          <MetricCard
-            label="Avg R"
-            value={`${formatNumber(
-              dashboardStats.avgR
-            )} R`}
-            valueColor={getResultColor(
-              dashboardStats.avgR
-            )}
-          />
-
-          <MetricCard
-            label="Max Drawdown"
-            value={formatMoney(
-              dashboardStats.maxDrawdown
-            )}
-            valueColor="#ef4444"
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.grid4,
-            marginTop: "13px",
-          }}
-        >
-          <MetricCard
-            label="P&L aujourd'hui"
-            value={formatMoney(
-              dashboardStats.pnlToday
-            )}
-            valueColor={getResultColor(
-              dashboardStats.pnlToday
-            )}
-          />
-
-          <MetricCard
-            label="P&L cette semaine"
-            value={formatMoney(
-              dashboardStats.pnlWeek
-            )}
-            valueColor={getResultColor(
-              dashboardStats.pnlWeek
-            )}
-          />
-
-          <MetricCard
-            label="P&L ce mois"
-            value={formatMoney(
-              dashboardStats.pnlMonth
-            )}
-            valueColor={getResultColor(
-              dashboardStats.pnlMonth
-            )}
-          />
-
-          <MetricCard
-            label="Expectancy"
-            value={`${formatNumber(
-              dashboardStats.expectancy
-            )} R`}
-            valueColor={getResultColor(
-              dashboardStats.expectancy
-            )}
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.grid4,
-            marginTop: "13px",
-          }}
-        >
-          <MetricCard
-            label="Gain moyen"
-            value={formatMoney(
-              dashboardStats.avgWin
-            )}
-            valueColor="#22c55e"
-          />
-
-          <MetricCard
-            label="Perte moyenne"
-            value={formatMoney(
-              dashboardStats.avgLoss
-            )}
-            valueColor="#ef4444"
-          />
-
-          <MetricCard
-            label="Meilleure série"
-            value={`${dashboardStats.bestWinStreak} W`}
-            valueColor="#22c55e"
-          />
-
-          <MetricCard
-            label="Pire série"
-            value={`${dashboardStats.bestLossStreak} L`}
-            valueColor="#ef4444"
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.grid4,
-            marginTop: "13px",
-          }}
-        >
-          <MetricCard
-            label="Capital initial"
-            value={formatMoney(
-              dashboardInitialCapital
-            )}
-          />
-
-          <MetricCard
-            label="Wins"
-            value={
-              dashboardStats.wins
-            }
-            valueColor="#22c55e"
-          />
-
-          <MetricCard
-            label="Loss"
-            value={
-              dashboardStats.losses
-            }
-            valueColor="#ef4444"
-          />
-
-          <MetricCard
-            label="Break Even"
-            value={
-              dashboardStats.breakeven
-            }
-          />
-        </div>
-
-        {/* EQUITY */}
-        <div style={styles.section}>
-          <div style={styles.card}>
-            <div
-              style={styles.sectionHeader}
-            >
-              <div>
-                <h3
-                  style={styles.sectionTitle}
-                >
-                  Courbe d'equity
-                </h3>
-
-                <p
-                  style={
-                    styles.sectionSubtitle
-                  }
-                >
-                  Évolution du capital selon
-                  les trades clôturés.
-                </p>
-              </div>
-            </div>
-
-            {dashboardStats
-              .equityCurve
-              .length === 0 ? (
-              <EmptyState
-                text="Aucun trade pour ce filtre."
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: 300,
-                }}
-              >
-                <ResponsiveContainer>
-                  <AreaChart
-                    data={
-                      dashboardStats.equityCurve
-                    }
-                  >
-                    <CartesianGrid
-                      stroke="#1e293b"
-                      strokeDasharray="3 3"
-                    />
-
-                    <XAxis
-                      dataKey="date"
-                      tick={{
-                        fill: "#64748b",
-                        fontSize: 10,
-                      }}
-                    />
-
-                    <YAxis
-                      tick={{
-                        fill: "#64748b",
-                        fontSize: 10,
-                      }}
-                    />
-
-                    <Tooltip
-                      contentStyle={{
-                        background:
-                          "#0f172a",
-                        border:
-                          "1px solid #334155",
-                        borderRadius: 8,
-                        color:
-                          "#e2e8f0",
-                      }}
-                      formatter={(
-                        value
-                      ) =>
-                        formatMoney(
-                          value
-                        )
-                      }
-                    />
-
-                    <Area
-                      type="monotone"
-                      dataKey="equity"
-                      stroke="#60a5fa"
-                      fill="#2563eb"
-                      fillOpacity={0.18}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* GROUPES DU CAPITAL ANALYSÉ */}
-        <div style={styles.section}>
-          <h3
-            style={{
-              ...styles.sectionTitle,
-              marginBottom: "12px",
-            }}
-          >
-            Analyse détaillée —{" "}
-            {selectedName}
-          </h3>
-
-          <div style={styles.grid2}>
-            <StatsTable
-              title="Par actif"
-              subtitle="Performance selon l'instrument."
-              rows={
-                dashboardGroupedAsset
-              }
-            />
-
-            <StatsTable
-              title="Par setup"
-              subtitle="Performance selon le setup."
-              rows={
-                dashboardGroupedSetup
-              }
-            />
-
-            <StatsTable
-              title="Par session"
-              subtitle="Performance selon la session."
-              rows={
-                dashboardGroupedSession
-              }
-            />
-
-            <StatsTable
-              title="Par timeframe"
-              subtitle="Performance selon le timeframe."
-              rows={
-                dashboardGroupedTimeframe
-              }
-            />
-
-            <StatsTable
-              title="Par direction"
-              subtitle="BUY vs SELL."
-              rows={
-                dashboardGroupedDirection
-              }
-            />
-
-            <StatsTable
-              title="Par sortie"
-              subtitle="TP, SL et BE."
-              rows={
-                dashboardGroupedExit
-              }
-            />
-          </div>
-        </div>
-
-        <RRTable
-          title={`Analyse RR — ${selectedName}`}
-          rows={dashboardRRStats}
-        />
-
-        {/* =================================================
-            PERFORMANCE GLOBALE
-        ================================================= */}
-
-        <div
-          style={{
-            ...styles.section,
-            marginTop: "38px",
-          }}
-        >
-          <div
-            style={{
-              border:
-                "1px solid #2563eb",
-              background:
-                "linear-gradient(135deg, rgba(30,58,138,.22), rgba(15,23,42,.95))",
-              borderRadius: "15px",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={
-                styles.sectionHeader
-              }
-            >
-              <div>
-                <h2
-                  style={{
-                    ...styles.sectionTitle,
-                    fontSize: "19px",
-                  }}
-                >
-                  Performance globale
-                </h2>
-
-                <p
-                  style={
-                    styles.sectionSubtitle
-                  }
-                >
-                  Tous les capitaux — actifs
-                  et archivés. Cette section
-                  représente la performance
-                  historique globale du journal.
-                </p>
-              </div>
-            </div>
-
-            <div style={styles.grid4}>
-              <MetricCard
-                label="Capital initial global"
-                value={formatMoney(
-                  globalInitialCapital
-                )}
-              />
-
-              <MetricCard
-                label="Balance globale"
-                value={formatMoney(
-                  globalCurrentBalance
-                )}
-              />
-
-              <MetricCard
-                label="P&L global"
-                value={formatMoney(
-                  globalStats.totalPnl
-                )}
-                valueColor={getResultColor(
-                  globalStats.totalPnl
-                )}
-              />
-
-              <MetricCard
-                label="Rendement global"
-                value={formatPercent(
-                  globalStats.pnlPercent
-                )}
-                valueColor={getResultColor(
-                  globalStats.pnlPercent
-                )}
-              />
-
-              <MetricCard
-                label="Trades globaux"
-                value={
-                  globalStats.trades
-                }
-              />
-
-              <MetricCard
-                label="Win Rate global"
-                value={formatPercent(
-                  globalStats.winRate
-                )}
-              />
-
-              <MetricCard
-                label="Profit Factor global"
-                value={
-                  Number.isFinite(
-                    globalStats.profitFactor
-                  )
-                    ? formatNumber(
-                        globalStats.profitFactor
-                      )
-                    : "∞"
-                }
-              />
-
-              <MetricCard
-                label="Avg R global"
-                value={`${formatNumber(
-                  globalStats.avgR
-                )} R`}
-                valueColor={getResultColor(
-                  globalStats.avgR
-                )}
-              />
-            </div>
-
-            <div
-              style={{
-                ...styles.grid4,
-                marginTop: "13px",
-              }}
-            >
-              <MetricCard
-                label="Max Drawdown global"
-                value={formatMoney(
-                  globalStats.maxDrawdown
-                )}
-                valueColor="#ef4444"
-              />
-
-              <MetricCard
-                label="Drawdown %"
-                value={formatPercent(
-                  globalStats.maxDrawdownPercent
-                )}
-                valueColor="#ef4444"
-              />
-
-              <MetricCard
-                label="Gain moyen global"
-                value={formatMoney(
-                  globalStats.avgWin
-                )}
-                valueColor="#22c55e"
-              />
-
-              <MetricCard
-                label="Perte moyenne globale"
-                value={formatMoney(
-                  globalStats.avgLoss
-                )}
-                valueColor="#ef4444"
-              />
-
-              <MetricCard
-                label="P&L aujourd'hui"
-                value={formatMoney(
-                  globalStats.pnlToday
-                )}
-                valueColor={getResultColor(
-                  globalStats.pnlToday
-                )}
-              />
-
-              <MetricCard
-                label="P&L semaine"
-                value={formatMoney(
-                  globalStats.pnlWeek
-                )}
-                valueColor={getResultColor(
-                  globalStats.pnlWeek
-                )}
-              />
-
-              <MetricCard
-                label="P&L mois"
-                value={formatMoney(
-                  globalStats.pnlMonth
-                )}
-                valueColor={getResultColor(
-                  globalStats.pnlMonth
-                )}
-              />
-
-              <MetricCard
-                label="Expectancy"
-                value={`${formatNumber(
-                  globalStats.expectancy
-                )} R`}
-                valueColor={getResultColor(
-                  globalStats.expectancy
-                )}
-              />
-            </div>
-
-            <div
-              style={{
-                ...styles.grid4,
-                marginTop: "13px",
-              }}
-            >
-              <MetricCard
-                label="Wins"
-                value={
-                  globalStats.wins
-                }
-                valueColor="#22c55e"
-              />
-
-              <MetricCard
-                label="Loss"
-                value={
-                  globalStats.losses
-                }
-                valueColor="#ef4444"
-              />
-
-              <MetricCard
-                label="Break Even"
-                value={
-                  globalStats.breakeven
-                }
-              />
-
-              <MetricCard
-                label="Meilleure série"
-                value={`${globalStats.bestWinStreak} W`}
-                valueColor="#22c55e"
-              />
-            </div>
-
-            <div
-              style={{
-                ...styles.card,
-                marginTop: "18px",
-              }}
-            >
-              <h3
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Equity globale
-              </h3>
-
-              <p
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Tous les trades clôturés de
-                tous les capitaux.
-              </p>
-
-              {globalStats.equityCurve
-                .length === 0 ? (
-                <EmptyState
-                  text="Aucun trade enregistré."
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    height: 300,
-                    marginTop: "12px",
-                  }}
-                >
-                  <ResponsiveContainer>
-                    <AreaChart
-                      data={
-                        globalStats.equityCurve
-                      }
-                    >
-                      <CartesianGrid
-                        stroke="#1e293b"
-                        strokeDasharray="3 3"
-                      />
-
-                      <XAxis
-                        dataKey="date"
-                        tick={{
-                          fill: "#64748b",
-                          fontSize: 10,
-                        }}
-                      />
-
-                      <YAxis
-                        tick={{
-                          fill: "#64748b",
-                          fontSize: 10,
-                        }}
-                      />
-
-                      <Tooltip
-                        contentStyle={{
-                          background:
-                            "#0f172a",
-                          border:
-                            "1px solid #334155",
-                          borderRadius: 8,
-                        }}
-                        formatter={(
-                          value
-                        ) =>
-                          formatMoney(
-                            value
-                          )
-                        }
-                      />
-
-                      <Area
-                        type="monotone"
-                        dataKey="equity"
-                        stroke="#60a5fa"
-                        fill="#2563eb"
-                        fillOpacity={0.18}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                marginTop: "18px",
-              }}
-            >
-              <div style={styles.grid2}>
-                <StatsTable
-                  title="Global — Actifs"
-                  subtitle="Tous les instruments."
-                  rows={
-                    globalGroupedAsset
-                  }
-                />
-
-                <StatsTable
-                  title="Global — Setups"
-                  subtitle="Tous les setups."
-                  rows={
-                    globalGroupedSetup
-                  }
-                />
-
-                <StatsTable
-                  title="Global — Sessions"
-                  subtitle="Toutes les sessions."
-                  rows={
-                    globalGroupedSession
-                  }
-                />
-
-                <StatsTable
-                  title="Global — Timeframes"
-                  subtitle="Tous les timeframes."
-                  rows={
-                    globalGroupedTimeframe
-                  }
-                />
-
-                <StatsTable
-                  title="Global — Direction"
-                  subtitle="BUY / SELL."
-                  rows={
-                    globalGroupedDirection
-                  }
-                />
-
-                <StatsTable
-                  title="Global — Sorties"
-                  subtitle="TP / SL / BE."
-                  rows={
-                    globalGroupedExit
-                  }
-                />
-              </div>
-            </div>
-
-            <RRTable
-              title="Performance globale par RR"
-              rows={globalRRStats}
-            />
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  /* =======================================================
-     CAPITAL PAGE
-  ======================================================= */
-
-  function CapitalPage() {
-    return (
-      <>
-        <PageTitle
-          title="Capitaux"
-          subtitle="Gère tes capitaux actifs et archivés"
-          action={
-            <button
-              style={{
-                ...styles.button,
-                ...styles.primaryButton,
-              }}
-              onClick={
-                openNewCapitalModal
-              }
-            >
-              <Plus size={15} />
-              Nouveau capital
-            </button>
-          }
-        />
-
-        <div style={styles.section}>
-          <div
-            style={styles.sectionHeader}
-          >
-            <div>
-              <h2
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Capitaux actifs
-              </h2>
-
-              <p
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Capitaux actuellement utilisés
-                pour le trading.
-              </p>
-            </div>
-          </div>
-
-          {activeCapitals.length ===
-          0 ? (
-            <EmptyState
-              text="Aucun capital actif."
-              action={
-                <button
-                  style={{
-                    ...styles.button,
-                    ...styles.primaryButton,
-                  }}
-                  onClick={
-                    openNewCapitalModal
-                  }
-                >
-                  <Plus size={15} />
-                  Créer un capital
-                </button>
-              }
-            />
-          ) : (
-            <div style={styles.grid3}>
-              {activeCapitals.map(
-                (capital) => (
-                  <CapitalCard
-                    key={capital.id}
-                    capital={capital}
-                  />
-                )
-              )}
-            </div>
-          )}
-        </div>
-
-        <div style={styles.section}>
-          <div
-            style={styles.sectionHeader}
-          >
-            <div>
-              <h2
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Capitaux archivés
-              </h2>
-
-              <p
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Les capitaux archivés restent
-                disponibles dans les statistiques
-                globales.
-              </p>
-            </div>
-          </div>
-
-          {archivedCapitals.length ===
-          0 ? (
-            <EmptyState
-              text="Aucun capital archivé."
-            />
-          ) : (
-            <div style={styles.grid3}>
-              {archivedCapitals.map(
-                (capital) => (
-                  <CapitalCard
-                    key={capital.id}
-                    capital={capital}
-                  />
-                )
-              )}
-            </div>
-          )}
-        </div>
-      </>
-    );
-  }
-
-  function CapitalCard({
-    capital,
-  }) {
-    const capitalTrades =
-      trades.filter(
-        (trade) =>
-          trade.capitalId ===
-          capital.id
-      );
-
-    const pnl =
-      capitalTrades.reduce(
-        (sum, trade) =>
-          sum +
-          getTradeNetPnl(trade),
-        0
-      );
-
-    return (
-      <div style={styles.card}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent:
-              "space-between",
-            gap: "10px",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: "16px",
-              }}
-            >
-              {capital.name}
-            </div>
-
-            <div
-              style={{
-                color: "#64748b",
-                fontSize: "11px",
-                marginTop: "4px",
-              }}
-            >
-              {capital.status ===
-              "archived"
-                ? "Archivé"
-                : "Actif"}
-            </div>
-          </div>
-
-          <span
-            style={{
-              ...styles.badge,
-              color:
-                capital.status ===
-                "archived"
-                  ? "#fbbf24"
-                  : "#86efac",
-            }}
-          >
-            {capital.status ===
-            "archived"
-              ? "ARCHIVÉ"
-              : "ACTIF"}
-          </span>
-        </div>
-
-        <div
-          style={{
-            marginTop: "18px",
-            display: "grid",
-            gap: "9px",
-          }}
-        >
-          <CapitalInfoRow
-            label="Balance"
-            value={formatMoney(
-              capital.currentBalance
-            )}
-          />
-
-          <CapitalInfoRow
-            label="Capital initial"
-            value={formatMoney(
-              capital.initialCapital
-            )}
-          />
-
-          <CapitalInfoRow
-            label="P&L"
-            value={formatMoney(
-              pnl
-            )}
-            valueColor={getResultColor(
-              pnl
-            )}
-          />
-
-          <CapitalInfoRow
-            label="Trades"
-            value={
-              capitalTrades.length
-            }
-          />
-
-          <CapitalInfoRow
-            label="Risque / trade"
-            value={
-              capital.riskMode ===
-              "percentage"
-                ? `${formatNumber(
-                    capital.riskPercent
-                  )}% (${formatMoney(
-                    getCapitalRisk(
-                      capital
-                    )
-                  )})`
-                : `${formatMoney(
-                    capital.riskAmount
-                  )} (${formatPercent(
-                    getCapitalRiskPercent(
-                      capital
-                    )
-                  )})`
-            }
-          />
-
-          <CapitalInfoRow
-            label="RR de base"
-            value={`RR${capital.defaultRR}`}
-          />
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: "7px",
-            flexWrap: "wrap",
-            marginTop: "18px",
-          }}
-        >
-          <button
-            style={styles.button}
-            onClick={() =>
-              openEditCapitalModal(
-                capital
-              )
-            }
-          >
-            <Pencil size={13} />
-            Modifier
-          </button>
-
-          {capital.status ===
-          "archived" ? (
-            <button
-              style={styles.button}
-              onClick={() =>
-                restoreCapital(
-                  capital.id
-                )
-              }
-            >
-              <RotateCcw
-                size={13}
-              />
-              Restaurer
-            </button>
-          ) : (
-            <button
-              style={styles.button}
-              onClick={() =>
-                archiveCapital(
-                  capital.id
-                )
-              }
-            >
-              <Archive
-                size={13}
-              />
-              Archiver
-            </button>
-          )}
-
-          <button
-            style={{
-              ...styles.button,
-              ...styles.dangerButton,
-            }}
-            onClick={() =>
-              deleteCapital(
-                capital.id
-              )
-            }
-          >
-            <Trash2 size={13} />
-            Supprimer
-          </button>
-        </div>
-
-        <p
-          style={{
-            color: "#64748b",
-            fontSize: "10px",
-            marginTop: "13px",
-            lineHeight: 1.5,
-          }}
-        >
-          Le RR de base est une recommandation.
-          Chaque trade peut choisir indépendamment
-          RR1 à RR10.
-        </p>
-      </div>
-    );
-  }
-
-  /* =======================================================
-     JOURNAL
-  ======================================================= */
-
-  function JournalPage() {
-    const visibleTrades =
-      closedTrades
-        .filter((trade) => {
-          if (
-            tradeCapitalFilter ===
-            "all"
-          ) {
-            return true;
-          }
-
-          return (
-            trade.capitalId ===
-            tradeCapitalFilter
-          );
-        })
-        .sort(
-          (a, b) =>
-            getTradeTimestamp(b) -
-            getTradeTimestamp(a)
         );
 
-    return (
-      <>
-        <PageTitle
-          title="Journal"
-          subtitle="Historique détaillé de tes trades"
-          action={
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                flexWrap: "wrap",
-              }}
-            >
-              <select
-                value={
-                  tradeCapitalFilter
-                }
-                onChange={(event) =>
-                  setTradeCapitalFilter(
-                    event.target.value
-                  )
-                }
-                style={{
-                  ...styles.input,
-                  width: "220px",
-                }}
-              >
-                <option value="all">
-                  Tous les capitaux
-                </option>
+      case "journal":
+        return (
+          <JournalPage
+            trades={trades}
+            capitals={capitals}
+            filter={
+              tradeCapitalFilter
+            }
+            setFilter={
+              setTradeCapitalFilter
+            }
+            onNew={
+              openNewTradeModal
+            }
+            onDelete={
+              deleteTrade
+            }
+          />
+        );
 
-                {capitals.map(
-                  (capital) => (
-                    <option
-                      key={capital.id}
-                      value={capital.id}
-                    >
-                      {capital.name}
-                      {capital.status ===
-                      "archived"
-                        ? " — Archivé"
-                        : ""}
-                    </option>
-                  )
-                )}
-              </select>
+      case "capitals":
+        return (
+          <CapitalPage
+            capitals={capitals}
+            trades={trades}
+            onNew={
+              openNewCapitalModal
+            }
+            onEdit={
+              openEditCapitalModal
+            }
+            onArchive={
+              archiveCapital
+            }
+            onRestore={
+              restoreCapital
+            }
+            onDelete={
+              deleteCapital
+            }
+          />
+        );
 
-              <button
-                style={{
-                  ...styles.button,
-                  ...styles.primaryButton,
-                }}
-                onClick={
-                  openNewTradeModal
-                }
-              >
-                <Plus size={15} />
-                Nouveau trade
-              </button>
-            </div>
-          }
-        />
+      case "calendar":
+        return (
+          <CalendarPage
+            trades={trades}
+          />
+        );
 
-        <div style={styles.card}>
-          {visibleTrades.length ===
-          0 ? (
-            <EmptyState
-              text="Aucun trade pour ce filtre."
-              action={
-                <button
-                  style={{
-                    ...styles.button,
-                    ...styles.primaryButton,
-                  }}
-                  onClick={
-                    openNewTradeModal
-                  }
-                >
-                  <Plus size={15} />
-                  Ajouter un trade
-                </button>
-              }
-            />
-          ) : (
-            <div
-              style={
-                styles.tableWrapper
-              }
-            >
-              <table
-                style={styles.table}
-              >
-                <thead>
-                  <tr>
-                    <th style={styles.th}>
-                      Date
-                    </th>
-                    <th style={styles.th}>
-                      Capital
-                    </th>
-                    <th style={styles.th}>
-                      Actif
-                    </th>
-                    <th style={styles.th}>
-                      Dir.
-                    </th>
-                    <th style={styles.th}>
-                      Entrée
-                    </th>
-                    <th style={styles.th}>
-                      SL
-                    </th>
-                    <th style={styles.th}>
-                      TP
-                    </th>
-                    <th style={styles.th}>
-                      RR
-                    </th>
-                    <th style={styles.th}>
-                      Sortie
-                    </th>
-                    <th style={styles.th}>
-                      Lot
-                    </th>
-                    <th style={styles.th}>
-                      Résultat
-                    </th>
-                    <th style={styles.th}>
-                      R
-                    </th>
-                    <th style={styles.th}>
-                      Action
-                    </th>
-                  </tr>
-                </thead>
+      case "calculator":
+        return (
+          <CalculatorPage
+            capitals={capitals}
+          />
+        );
 
-                <tbody>
-                  {visibleTrades.map(
-                    (trade) => {
-                      const capital =
-                        capitals.find(
-                          (item) =>
-                            item.id ===
-                            trade.capitalId
-                        );
+      case "settings":
+        return (
+          <SettingsPage
+            capitals={capitals}
+            trades={trades}
+          />
+        );
 
-                      const pnl =
-                        getTradeNetPnl(
-                          trade
-                        );
-
-                      return (
-                        <tr
-                          key={
-                            trade.id
-                          }
-                        >
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatDate(
-                              trade.dateTime
-                            )}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {capital?.name ||
-                              "-"}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            <strong>
-                              {
-                                trade.asset
-                              }
-                            </strong>
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            <span
-                              style={{
-                                ...styles.badge,
-                                color:
-                                  trade.direction ===
-                                  "BUY"
-                                    ? "#86efac"
-                                    : "#fca5a5",
-                              }}
-                            >
-                              {
-                                trade.direction
-                              }
-                            </span>
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatNumber(
-                              trade.entry,
-                              trade.asset ===
-                                "XAUUSD" ||
-                              trade.asset ===
-                                "USDJPY"
-                                ? 2
-                                : 5
-                            )}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatNumber(
-                              trade.stopLoss,
-                              trade.asset ===
-                                "XAUUSD" ||
-                              trade.asset ===
-                                "USDJPY"
-                                ? 2
-                                : 5
-                            )}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatNumber(
-                              trade.tp,
-                              trade.asset ===
-                                "XAUUSD" ||
-                              trade.asset ===
-                                "USDJPY"
-                                ? 2
-                                : 5
-                            )}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            RR
-                            {trade.rr}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatNumber(
-                              trade.exitPrice,
-                              trade.asset ===
-                                "XAUUSD" ||
-                              trade.asset ===
-                                "USDJPY"
-                                ? 2
-                                : 5
-                            )}
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            {formatNumber(
-                              trade.lot
-                            )}
-                          </td>
-
-                          <td
-                            style={{
-                              ...styles.td,
-                              color:
-                                getResultColor(
-                                  pnl
-                                ),
-                              fontWeight: 800,
-                            }}
-                          >
-                            {formatMoney(
-                              pnl
-                            )}
-                          </td>
-
-                          <td
-                            style={{
-                              ...styles.td,
-                              color:
-                                getResultColor(
-                                  getTradeR(
-                                    trade
-                                  )
-                                ),
-                              fontWeight: 800,
-                            }}
-                          >
-                            {formatNumber(
-                              getTradeR(
-                                trade
-                              )
-                            )}
-                            R
-                          </td>
-
-                          <td
-                            style={
-                              styles.td
-                            }
-                          >
-                            <button
-                              style={{
-                                ...styles.button,
-                                padding:
-                                  "6px 8px",
-                              }}
-                              onClick={() =>
-                                deleteTrade(
-                                  trade.id
-                                )
-                              }
-                            >
-                              <Trash2
-                                size={
-                                  13
-                                }
-                              />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </>
-    );
-  }
-
-  /* =======================================================
-     CALENDAR
-  ======================================================= */
-
-  function CalendarPage() {
-    const now =
-      new Date();
-
-    const [calendarDate, setCalendarDate] =
-      useState(
-        new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          1
-        )
-      );
-
-    const year =
-      calendarDate.getFullYear();
-
-    const month =
-      calendarDate.getMonth();
-
-    const monthName =
-      calendarDate.toLocaleDateString(
-        "fr-FR",
-        {
-          month: "long",
-          year: "numeric",
-        }
-      );
-
-    const monthTrades =
-      closedTrades.filter(
-        (trade) => {
-          const date =
-            getTradeDate(trade);
-
-          return (
-            date &&
-            date.getFullYear() ===
-              year &&
-            date.getMonth() ===
-              month
-          );
-        }
-      );
-
-    const monthStats =
-      calculatePerformanceStats(
-        monthTrades,
-        0
-      );
-
-    const daysInMonth =
-      new Date(
-        year,
-        month + 1,
-        0
-      ).getDate();
-
-    const firstDay =
-      new Date(
-        year,
-        month,
-        1
-      ).getDay();
-
-    const mondayIndex =
-      firstDay === 0
-        ? 6
-        : firstDay - 1;
-
-    const calendarCells = [];
-
-    for (
-      let i = 0;
-      i < mondayIndex;
-      i += 1
-    ) {
-      calendarCells.push(
-        null
-      );
+      default:
+        return null;
     }
-
-    for (
-      let day = 1;
-      day <= daysInMonth;
-      day += 1
-    ) {
-      calendarCells.push(day);
-    }
-
-    const dailyData =
-      Array.from(
-        {
-          length:
-            daysInMonth,
-        },
-        (_, index) => {
-          const day =
-            index + 1;
-
-          const dayTrades =
-            monthTrades.filter(
-              (trade) => {
-                const date =
-                  getTradeDate(
-                    trade
-                  );
-
-                return (
-                  date &&
-                  date.getDate() ===
-                    day
-                );
-              }
-            );
-
-          const pnl =
-            dayTrades.reduce(
-              (sum, trade) =>
-                sum +
-                getTradeNetPnl(
-                  trade
-                ),
-              0
-            );
-
-          const r =
-            dayTrades.reduce(
-              (sum, trade) =>
-                sum +
-                getTradeR(trade),
-              0
-            );
-
-          return {
-            day,
-            trades:
-              dayTrades.length,
-            pnl,
-            r,
-            wins:
-              dayTrades.filter(
-                (trade) =>
-                  getTradeNetPnl(
-                    trade
-                  ) > 0
-              ).length,
-            losses:
-              dayTrades.filter(
-                (trade) =>
-                  getTradeNetPnl(
-                    trade
-                  ) < 0
-              ).length,
-          };
-        }
-      );
-
-    const activeDays =
-      dailyData.filter(
-        (day) =>
-          day.trades > 0
-      );
-
-    const bestDay =
-      [...activeDays].sort(
-        (a, b) =>
-          b.pnl - a.pnl
-      )[0];
-
-    const worstDay =
-      [...activeDays].sort(
-        (a, b) =>
-          a.pnl - b.pnl
-      )[0];
-
-    function changeMonth(
-      amount
-    ) {
-      setCalendarDate(
-        new Date(
-          year,
-          month + amount,
-          1
-        )
-      );
-    }
-
-    return (
-      <>
-        <PageTitle
-          title="Calendrier"
-          subtitle="Vue quotidienne et mensuelle des performances"
-          action={
-            <div
-              style={{
-                display: "flex",
-                gap: "7px",
-              }}
-            >
-              <button
-                style={styles.button}
-                onClick={() =>
-                  changeMonth(-1)
-                }
-              >
-                ←
-              </button>
-
-              <button
-                style={styles.button}
-                onClick={() =>
-                  setCalendarDate(
-                    new Date(
-                      now.getFullYear(),
-                      now.getMonth(),
-                      1
-                    )
-                  )
-                }
-              >
-                Aujourd'hui
-              </button>
-
-              <button
-                style={styles.button}
-                onClick={() =>
-                  changeMonth(1)
-                }
-              >
-                →
-              </button>
-            </div>
-          }
-        />
-
-        <div
-          style={{
-            ...styles.sectionHeader,
-            marginBottom: "15px",
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                ...styles.sectionTitle,
-                textTransform:
-                  "capitalize",
-              }}
-            >
-              {monthName}
-            </h2>
-          </div>
-        </div>
-
-        <div style={styles.grid4}>
-          <MetricCard
-            label="P&L du mois"
-            value={formatMoney(
-              monthStats.totalPnl
-            )}
-            valueColor={getResultColor(
-              monthStats.totalPnl
-            )}
-          />
-
-          <MetricCard
-            label="Trades"
-            value={
-              monthStats.trades
-            }
-          />
-
-          <MetricCard
-            label="Win Rate"
-            value={formatPercent(
-              monthStats.winRate
-            )}
-          />
-
-          <MetricCard
-            label="Avg R"
-            value={`${formatNumber(
-              monthStats.avgR
-            )} R`}
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.grid2,
-            marginTop: "13px",
-          }}
-        >
-          <MetricCard
-            label="Meilleur jour"
-            value={
-              bestDay
-                ? `${bestDay.day} — ${formatMoney(
-                    bestDay.pnl
-                  )}`
-                : "-"
-            }
-            valueColor="#22c55e"
-          />
-
-          <MetricCard
-            label="Pire jour"
-            value={
-              worstDay
-                ? `${worstDay.day} — ${formatMoney(
-                    worstDay.pnl
-                  )}`
-                : "-"
-            }
-            valueColor="#ef4444"
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.card,
-            marginTop: "20px",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(7, minmax(0, 1fr))",
-              gap: "6px",
-              marginBottom: "7px",
-            }}
-          >
-            {[
-              "Lun",
-              "Mar",
-              "Mer",
-              "Jeu",
-              "Ven",
-              "Sam",
-              "Dim",
-            ].map((day) => (
-              <div
-                key={day}
-                style={{
-                  color:
-                    "#64748b",
-                  fontSize:
-                    "10px",
-                  fontWeight:
-                    800,
-                  textAlign:
-                    "center",
-                  padding:
-                    "7px",
-                }}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(7, minmax(0, 1fr))",
-              gap: "6px",
-            }}
-          >
-            {calendarCells.map(
-              (day, index) => {
-                if (
-                  day ===
-                  null
-                ) {
-                  return (
-                    <div
-                      key={`empty-${index}`}
-                      style={{
-                        minHeight:
-                          "82px",
-                      }}
-                    />
-                  );
-                }
-
-                const data =
-                  dailyData[
-                    day - 1
-                  ];
-
-                const hasTrades =
-                  data.trades >
-                  0;
-
-                return (
-                  <div
-                    key={day}
-                    style={{
-                      minHeight:
-                        "82px",
-                      border:
-                        "1px solid #1e293b",
-                      borderRadius:
-                        "8px",
-                      padding:
-                        "8px",
-                      background:
-                        hasTrades
-                          ? data.pnl >
-                            0
-                            ? "rgba(34,197,94,.08)"
-                            : data.pnl <
-                              0
-                            ? "rgba(239,68,68,.08)"
-                            : "#0b1220"
-                          : "#0b1220",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize:
-                          "11px",
-                        fontWeight:
-                          800,
-                      }}
-                    >
-                      {day}
-                    </div>
-
-                    {hasTrades && (
-                      <>
-                        <div
-                          style={{
-                            fontSize:
-                              "12px",
-                            fontWeight:
-                              800,
-                            color:
-                              getResultColor(
-                                data.pnl
-                              ),
-                            marginTop:
-                              "10px",
-                          }}
-                        >
-                          {formatMoney(
-                            data.pnl
-                          )}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize:
-                              "9px",
-                            color:
-                              "#64748b",
-                            marginTop:
-                              "4px",
-                          }}
-                        >
-                          {
-                            data.trades
-                          }{" "}
-                          trade
-                          {data.trades >
-                          1
-                            ? "s"
-                            : ""}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              }
-            )}
-          </div>
-        </div>
-
-        <div
-          style={{
-            ...styles.card,
-            marginTop: "20px",
-          }}
-        >
-          <h3
-            style={
-              styles.sectionTitle
-            }
-          >
-            Détail quotidien
-          </h3>
-
-          <p
-            style={
-              styles.sectionSubtitle
-            }
-          >
-            Résumé de chaque journée ayant
-            au moins un trade.
-          </p>
-
-          <div
-            style={{
-              ...styles.tableWrapper,
-              marginTop: "12px",
-            }}
-          >
-            <table
-              style={styles.table}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    Jour
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    Trades
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    Wins
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    Loss
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    P&L
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    R
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {activeDays.length ===
-                0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      style={{
-                        ...styles.td,
-                        textAlign:
-                          "center",
-                        color:
-                          "#64748b",
-                      }}
-                    >
-                      Aucun trade ce
-                      mois-ci.
-                    </td>
-                  </tr>
-                ) : (
-                  activeDays.map(
-                    (day) => (
-                      <tr
-                        key={
-                          day.day
-                        }
-                      >
-                        <td
-                          style={
-                            styles.td
-                          }
-                        >
-                          {day.day}
-                        </td>
-
-                        <td
-                          style={
-                            styles.td
-                          }
-                        >
-                          {
-                            day.trades
-                          }
-                        </td>
-
-                        <td
-                          style={{
-                            ...styles.td,
-                            color:
-                              "#22c55e",
-                          }}
-                        >
-                          {
-                            day.wins
-                          }
-                        </td>
-
-                        <td
-                          style={{
-                            ...styles.td,
-                            color:
-                              "#ef4444",
-                          }}
-                        >
-                          {
-                            day.losses
-                          }
-                        </td>
-
-                        <td
-                          style={{
-                            ...styles.td,
-                            color:
-                              getResultColor(
-                                day.pnl
-                              ),
-                            fontWeight:
-                              800,
-                          }}
-                        >
-                          {formatMoney(
-                            day.pnl
-                          )}
-                        </td>
-
-                        <td
-                          style={{
-                            ...styles.td,
-                            color:
-                              getResultColor(
-                                day.r
-                              ),
-                          }}
-                        >
-                          {formatNumber(
-                            day.r
-                          )}{" "}
-                          R
-                        </td>
-                      </tr>
-                    )
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  /* =======================================================
-     CALCULATOR
-  ======================================================= */
-
-  function CalculatorPage() {
-    const defaultCapital =
-      activeCapitals[0];
-
-    const [calculatorCapitalId, setCalculatorCapitalId] =
-      useState(
-        defaultCapital?.id ||
-          ""
-      );
-
-    const [calculatorAsset, setCalculatorAsset] =
-      useState("XAUUSD");
-
-    const [calculatorDirection, setCalculatorDirection] =
-      useState("BUY");
-
-    const [calculatorEntry, setCalculatorEntry] =
-      useState("");
-
-    const [calculatorSL, setCalculatorSL] =
-      useState("");
-
-    const calculatorCapital =
-      activeCapitals.find(
-        (capital) =>
-          capital.id ===
-          calculatorCapitalId
-      );
-
-    const calcRisk =
-      getCapitalRisk(
-        calculatorCapital
-      );
-
-    const calcEntry =
-      Number(
-        calculatorEntry
-      ) || 0;
-
-    const calcSL =
-      Number(
-        calculatorSL
-      ) || 0;
-
-    const calcStopPips =
-      calculateStopPips(
-        calculatorAsset,
-        calcEntry,
-        calcSL
-      );
-
-    const calcPipValue =
-      getPipValuePerLot(
-        calculatorAsset,
-        calcEntry
-      );
-
-    const calcLot =
-      calculateLot(
-        calcRisk,
-        calcStopPips,
-        calcPipValue
-      );
-
-    return (
-      <>
-        <PageTitle
-          title="Calculateur"
-          subtitle="Calcule automatiquement le risque, le lot et les TP"
-        />
-
-        <div
-          style={{
-            ...styles.card,
-            marginBottom: "15px",
-          }}
-        >
-          <div
-            style={styles.formGrid2}
-          >
-            <div>
-              <label
-                style={styles.label}
-              >
-                Capital
-              </label>
-
-              <select
-                value={
-                  calculatorCapitalId
-                }
-                onChange={(event) =>
-                  setCalculatorCapitalId(
-                    event.target.value
-                  )
-                }
-                style={styles.input}
-              >
-                <option value="">
-                  Sélectionner
-                </option>
-
-                {activeCapitals.map(
-                  (capital) => (
-                    <option
-                      key={
-                        capital.id
-                      }
-                      value={
-                        capital.id
-                      }
-                    >
-                      {
-                        capital.name
-                      }
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Actif
-              </label>
-
-              <select
-                value={
-                  calculatorAsset
-                }
-                onChange={(event) =>
-                  setCalculatorAsset(
-                    event.target.value
-                  )
-                }
-                style={styles.input}
-              >
-                {ASSETS.map(
-                  (asset) => (
-                    <option
-                      key={asset}
-                      value={asset}
-                    >
-                      {asset}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Direction
-              </label>
-
-              <select
-                value={
-                  calculatorDirection
-                }
-                onChange={(event) =>
-                  setCalculatorDirection(
-                    event.target.value
-                  )
-                }
-                style={styles.input}
-              >
-                <option value="BUY">
-                  BUY
-                </option>
-                <option value="SELL">
-                  SELL
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Entrée
-              </label>
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  calculatorEntry
-                }
-                onChange={(event) =>
-                  setCalculatorEntry(
-                    event.target.value
-                  )
-                }
-                style={styles.input}
-                placeholder="Ex : 2000"
-              />
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Stop Loss
-              </label>
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  calculatorSL
-                }
-                onChange={(event) =>
-                  setCalculatorSL(
-                    event.target.value
-                  )
-                }
-                style={styles.input}
-                placeholder="Ex : 1998"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.grid4}>
-          <MetricCard
-            label="Risque"
-            value={formatMoney(
-              calcRisk
-            )}
-          />
-
-          <MetricCard
-            label="Risque %"
-            value={formatPercent(
-              getCapitalRiskPercent(
-                calculatorCapital
-              )
-            )}
-          />
-
-          <MetricCard
-            label="SL"
-            value={`${formatNumber(
-              calcStopPips
-            )} pips`}
-          />
-
-          <MetricCard
-            label="Pip value / lot"
-            value={formatMoney(
-              calcPipValue
-            )}
-          />
-
-          <MetricCard
-            label="Lot calculé"
-            value={formatNumber(
-              calcLot
-            )}
-          />
-
-          <MetricCard
-            label="Perte au SL"
-            value={formatMoney(
-              -calcRisk
-            )}
-            valueColor="#ef4444"
-          />
-        </div>
-
-        <div
-          style={{
-            ...styles.card,
-            marginTop: "20px",
-          }}
-        >
-          <h3
-            style={
-              styles.sectionTitle
-            }
-          >
-            TP selon chaque RR
-          </h3>
-
-          <p
-            style={
-              styles.sectionSubtitle
-            }
-          >
-            Le RR choisi détermine
-            automatiquement le TP.
-          </p>
-
-          <div
-            style={{
-              ...styles.tableWrapper,
-              marginTop: "12px",
-            }}
-          >
-            <table
-              style={styles.table}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    RR
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    TP
-                  </th>
-
-                  <th
-                    style={
-                      styles.th
-                    }
-                  >
-                    Gain théorique
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {RR_OPTIONS.map(
-                  (rr) => {
-                    const tp =
-                      calculateTP(
-                        calculatorDirection,
-                        calcEntry,
-                        calcSL,
-                        rr
-                      );
-
-                    const gain =
-                      calcRisk * rr;
-
-                    return (
-                      <tr
-                        key={rr}
-                      >
-                        <td
-                          style={
-                            styles.td
-                          }
-                        >
-                          <strong>
-                            RR{rr}
-                          </strong>
-                        </td>
-
-                        <td
-                          style={
-                            styles.td
-                          }
-                        >
-                          {tp > 0
-                            ? formatNumber(
-                                tp,
-                                calculatorAsset ===
-                                  "XAUUSD" ||
-                                calculatorAsset ===
-                                  "USDJPY"
-                                  ? 2
-                                  : 5
-                              )
-                            : "-"}
-                        </td>
-
-                        <td
-                          style={{
-                            ...styles.td,
-                            color:
-                              "#22c55e",
-                          }}
-                        >
-                          {calcRisk >
-                          0
-                            ? formatMoney(
-                                gain
-                              )
-                            : "-"}
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  /* =======================================================
-     SETTINGS
-  ======================================================= */
-
-  function SettingsPage() {
-    function clearTrades() {
-      if (
-        !window.confirm(
-          "Supprimer TOUS les trades ? Cette action est irréversible."
-        )
-      ) {
-        return;
-      }
-
-      setTrades([]);
-
-      showNotification(
-        "Tous les trades ont été supprimés."
-      );
-    }
-
-    function clearAllData() {
-      if (
-        !window.confirm(
-          "Supprimer TOUS les capitaux et TOUS les trades ? Cette action est irréversible."
-        )
-      ) {
-        return;
-      }
-
-      setTrades([]);
-      setCapitals([]);
-
-      showNotification(
-        "Toutes les données ont été supprimées."
-      );
-    }
-
-    return (
-      <>
-        <PageTitle
-          title="Paramètres"
-          subtitle="Gestion des données locales du journal"
-        />
-
-        <div style={styles.grid2}>
-          <div style={styles.card}>
-            <Settings
-              size={35}
-              color="#60a5fa"
-            />
-
-            <h3
-              style={{
-                ...styles.sectionTitle,
-                marginTop: "13px",
-              }}
-            >
-              Stockage local
-            </h3>
-
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: "12px",
-                lineHeight: 1.6,
-              }}
-            >
-              Les données du journal sont
-              actuellement enregistrées dans
-              le stockage local du navigateur.
-            </p>
-
-            <div
-              style={{
-                marginTop: "15px",
-                display: "grid",
-                gap: "8px",
-              }}
-            >
-              <CapitalInfoRow
-                label="Capitaux"
-                value={
-                  capitals.length
-                }
-              />
-
-              <CapitalInfoRow
-                label="Trades"
-                value={
-                  trades.length
-                }
-              />
-
-              <CapitalInfoRow
-                label="Capitaux actifs"
-                value={
-                  activeCapitals.length
-                }
-              />
-
-              <CapitalInfoRow
-                label="Capitaux archivés"
-                value={
-                  archivedCapitals.length
-                }
-              />
-            </div>
-          </div>
-
-          <div style={styles.card}>
-            <h3
-              style={
-                styles.sectionTitle
-              }
-            >
-              Gestion des données
-            </h3>
-
-            <p
-              style={
-                styles.sectionSubtitle
-              }
-            >
-              Utilise ces actions avec
-              précaution.
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection:
-                  "column",
-                gap: "10px",
-                marginTop: "18px",
-              }}
-            >
-              <button
-                style={{
-                  ...styles.button,
-                  ...styles.dangerButton,
-                }}
-                onClick={
-                  clearTrades
-                }
-              >
-                <Trash2 size={14} />
-                Supprimer tous les trades
-              </button>
-
-              <button
-                style={{
-                  ...styles.button,
-                  ...styles.dangerButton,
-                }}
-                onClick={
-                  clearAllData
-                }
-              >
-                <Trash2 size={14} />
-                Réinitialiser toutes les données
-              </button>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  /* =======================================================
-     CAPITAL MODAL
-  ======================================================= */
-
-  function CapitalModal() {
-    if (!capitalModalOpen) {
-      return null;
-    }
-
-    const previewCapital = {
-      initialCapital:
-        Number(
-          capitalForm.initialCapital
-        ) || 0,
-      currentBalance:
-        Number(
-          capitalForm.currentBalance
-        ) ||
-        Number(
-          capitalForm.initialCapital
-        ) ||
-        0,
-      riskMode:
-        capitalForm.riskMode,
-      riskPercent:
-        Number(
-          capitalForm.riskPercent
-        ) || 0,
-      riskAmount:
-        Number(
-          capitalForm.riskAmount
-        ) || 0,
-    };
-
-    const previewRisk =
-      getCapitalRisk(
-        previewCapital
-      );
-
-    const previewRiskPercent =
-      getCapitalRiskPercent(
-        previewCapital
-      );
-
-    return (
-      <div
-        style={
-          styles.modalOverlay
-        }
-        onMouseDown={(event) => {
-          if (
-            event.target ===
-            event.currentTarget
-          ) {
-            setCapitalModalOpen(
-              false
-            );
-          }
-        }}
-      >
-        <div
-          style={styles.modal}
-        >
-          <div
-            style={
-              styles.modalHeader
-            }
-          >
-            <div>
-              <h2
-                style={
-                  styles.modalTitle
-                }
-              >
-                {editingCapitalId
-                  ? "Modifier le capital"
-                  : "Nouveau capital"}
-              </h2>
-
-              <p
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Paramètres de gestion du risque.
-              </p>
-            </div>
-
-            <button
-              style={
-                styles.closeButton
-              }
-              onClick={() =>
-                setCapitalModalOpen(
-                  false
-                )
-              }
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <div
-            style={
-              styles.formGrid2
-            }
-          >
-            <div>
-              <label
-                style={styles.label}
-              >
-                Nom du capital
-              </label>
-
-              <input
-                value={
-                  capitalForm.name
-                }
-                onChange={(event) =>
-                  setCapitalForm(
-                    (current) => ({
-                      ...current,
-                      name:
-                        event.target
-                          .value,
-                    })
-                  )
-                }
-                style={styles.input}
-                placeholder="Ex : Compte principal"
-              />
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Capital initial
-              </label>
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  capitalForm.initialCapital
-                }
-                onChange={(event) =>
-                  setCapitalForm(
-                    (current) => ({
-                      ...current,
-                      initialCapital:
-                        event.target
-                          .value,
-                      currentBalance:
-                        current.currentBalance ||
-                        event.target
-                          .value,
-                    })
-                  )
-                }
-                style={styles.input}
-                placeholder="2000"
-              />
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Balance actuelle
-              </label>
-
-              <input
-                type="number"
-                step="any"
-                value={
-                  capitalForm.currentBalance
-                }
-                onChange={(event) =>
-                  setCapitalForm(
-                    (current) => ({
-                      ...current,
-                      currentBalance:
-                        event.target
-                          .value,
-                    })
-                  )
-                }
-                style={styles.input}
-                placeholder="2000"
-              />
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                RR de base
-              </label>
-
-              <select
-                value={
-                  capitalForm.defaultRR
-                }
-                onChange={(event) =>
-                  setCapitalForm(
-                    (current) => ({
-                      ...current,
-                      defaultRR:
-                        event.target
-                          .value,
-                    })
-                  )
-                }
-                style={styles.input}
-              >
-                {RR_OPTIONS.map(
-                  (rr) => (
-                    <option
-                      key={rr}
-                      value={rr}
-                    >
-                      RR{rr}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={styles.label}
-              >
-                Mode de risque
-              </label>
-
-              <select
-                value={
-                  capitalForm.riskMode
-                }
-                onChange={(event) =>
-                  setCapitalForm(
-                    (current) => ({
-                      ...current,
-                      riskMode:
-                        event.target
-                          .value,
-                    })
-                  )
-                }
-                style={styles.input}
-              >
-                <option value="percentage">
-                  Pourcentage
-                </option>
-
-                <option value="fixed">
-                  Montant fixe
-                </option>
-              </select>
-            </div>
-
-            {capitalForm.riskMode ===
-            "percentage" ? (
-              <div>
-                <label
-                  style={styles.label}
-                >
-                  Risque %
-                </label>
-
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    capitalForm.riskPercent
-                  }
-                  onChange={(event) =>
-                    setCapitalForm(
-                      (current) => ({
-                        ...current,
-                        riskPercent:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={styles.input}
-                  placeholder="1"
-                />
-              </div>
-            ) : (
-              <div>
-                <label
-                  style={styles.label}
-                >
-                  Risque fixe $
-                </label>
-
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    capitalForm.riskAmount
-                  }
-                  onChange={(event) =>
-                    setCapitalForm(
-                      (current) => ({
-                        ...current,
-                        riskAmount:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={styles.input}
-                  placeholder="20"
-                />
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              ...styles.card,
-              marginTop: "18px",
-              background:
-                "#020617",
-            }}
-          >
-            <div
-              style={styles.grid2}
-            >
-              <CapitalInfoRow
-                label="Risque actuel"
-                value={formatMoney(
-                  previewRisk
-                )}
-              />
-
-              <CapitalInfoRow
-                label="Risque %"
-                value={formatPercent(
-                  previewRiskPercent
-                )}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "flex-end",
-              gap: "8px",
-              marginTop: "20px",
-            }}
-          >
-            <button
-              style={styles.button}
-              onClick={() =>
-                setCapitalModalOpen(
-                  false
-                )
-              }
-            >
-              Annuler
-            </button>
-
-            <button
-              style={{
-                ...styles.button,
-                ...styles.primaryButton,
-              }}
-              onClick={
-                saveCapital
-              }
-            >
-              <Check size={14} />
-              {editingCapitalId
-                ? "Enregistrer"
-                : "Créer le capital"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* =======================================================
-     TRADE MODAL
-  ======================================================= */
-
-  function TradeModal() {
-    if (!tradeModalOpen) {
-      return null;
-    }
-
-    return (
-      <div
-        style={
-          styles.modalOverlay
-        }
-        onMouseDown={(event) => {
-          if (
-            event.target ===
-            event.currentTarget
-          ) {
-            setTradeModalOpen(
-              false
-            );
-          }
-        }}
-      >
-        <div
-          style={{
-            ...styles.modal,
-            width: "min(1050px, 100%)",
-          }}
-        >
-          <div
-            style={
-              styles.modalHeader
-            }
-          >
-            <div>
-              <h2
-                style={
-                  styles.modalTitle
-                }
-              >
-                Nouveau trade
-              </h2>
-
-              <p
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Le lot et le TP sont calculés
-                automatiquement.
-              </p>
-            </div>
-
-            <button
-              style={
-                styles.closeButton
-              }
-              onClick={() =>
-                setTradeModalOpen(
-                  false
-                )
-              }
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <FormSectionTitle
-            title="Contexte"
-          />
-
-          <div
-            style={
-              styles.formGrid3
-            }
-          >
-            <FormField
-              label="Capital"
-              input={
-                <select
-                  value={
-                    tradeForm.capitalId
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        capitalId:
-                          event.target
-                            .value,
-                        rr:
-                          capitals.find(
-                            (
-                              capital
-                            ) =>
-                              capital.id ===
-                              event.target
-                                .value
-                          )?.defaultRR ||
-                          "2",
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  <option value="">
-                    Sélectionner
-                  </option>
-
-                  {activeCapitals.map(
-                    (capital) => (
-                      <option
-                        key={
-                          capital.id
-                        }
-                        value={
-                          capital.id
-                        }
-                      >
-                        {
-                          capital.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-
-            <FormField
-              label="Actif"
-              input={
-                <select
-                  value={
-                    tradeForm.asset
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        asset:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  {ASSETS.map(
-                    (asset) => (
-                      <option
-                        key={asset}
-                        value={asset}
-                      >
-                        {asset}
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-
-            <FormField
-              label="Date / heure"
-              input={
-                <input
-                  type="datetime-local"
-                  value={
-                    tradeForm.dateTime
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        dateTime:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                />
-              }
-            />
-
-            <FormField
-              label="Session"
-              input={
-                <select
-                  value={
-                    tradeForm.session
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        session:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  {SESSIONS.map(
-                    (session) => (
-                      <option
-                        key={session}
-                        value={
-                          session
-                        }
-                      >
-                        {session}
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-
-            <FormField
-              label="Direction"
-              input={
-                <select
-                  value={
-                    tradeForm.direction
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        direction:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  <option value="BUY">
-                    BUY
-                  </option>
-
-                  <option value="SELL">
-                    SELL
-                  </option>
-                </select>
-              }
-            />
-
-            <FormField
-              label="Timeframe"
-              input={
-                <select
-                  value={
-                    tradeForm.timeframe
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        timeframe:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  {TIMEFRAMES.map(
-                    (timeframe) => (
-                      <option
-                        key={
-                          timeframe
-                        }
-                        value={
-                          timeframe
-                        }
-                      >
-                        {
-                          timeframe
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-          </div>
-
-          <FormSectionTitle
-            title="Plan du trade"
-          />
-
-          <div
-            style={
-              styles.formGrid3
-            }
-          >
-            <FormField
-              label="Entrée"
-              input={
-                <input
-                  type="number"
-                  step="any"
-                  value={
-                    tradeForm.entry
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        entry:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                  placeholder="Ex : 2000"
-                />
-              }
-            />
-
-            <FormField
-              label="Stop Loss"
-              input={
-                <input
-                  type="number"
-                  step="any"
-                  value={
-                    tradeForm.stopLoss
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        stopLoss:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                  placeholder="Ex : 1998"
-                />
-              }
-            />
-
-            <FormField
-              label="RR du trade"
-              input={
-                <select
-                  value={
-                    tradeForm.rr
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        rr:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  {RR_OPTIONS.map(
-                    (rr) => (
-                      <option
-                        key={rr}
-                        value={rr}
-                      >
-                        RR{rr}
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-          </div>
-
-          <div
-            style={{
-              ...styles.grid4,
-              marginTop: "13px",
-            }}
-          >
-            <MetricCard
-              label="Risque"
-              value={formatMoney(
-                tradeRisk
-              )}
-            />
-
-            <MetricCard
-              label="SL"
-              value={`${formatNumber(
-                tradeStopPips
-              )} pips`}
-            />
-
-            <MetricCard
-              label="Lot automatique"
-              value={formatNumber(
-                tradeLot
-              )}
-            />
-
-            <MetricCard
-              label={`TP — RR${tradeRR}`}
-              value={
-                tradeTP
-                  ? formatNumber(
-                      tradeTP,
-                      tradeForm.asset ===
-                        "XAUUSD" ||
-                        tradeForm.asset ===
-                          "USDJPY"
-                        ? 2
-                        : 5
-                    )
-                  : "-"
-              }
-            />
-          </div>
-
-          <FormSectionTitle
-            title="Résultat"
-          />
-
-          <div
-            style={
-              styles.formGrid3
-            }
-          >
-            <FormField
-              label="Type de sortie"
-              input={
-                <select
-                  value={
-                    tradeForm.exitType
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        exitType:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  <option value="TP">
-                    TP
-                  </option>
-
-                  <option value="SL">
-                    SL
-                  </option>
-
-                  <option value="BE">
-                    BE
-                  </option>
-                </select>
-              }
-            />
-
-            {tradeForm.exitType ===
-            "BE" ? (
-              <FormField
-                label="Prix réel de sortie"
-                input={
-                  <input
-                    type="number"
-                    step="any"
-                    value={
-                      tradeForm.exitPrice
-                    }
-                    onChange={(event) =>
-                      setTradeForm(
-                        (current) => ({
-                          ...current,
-                          exitPrice:
-                            event.target
-                              .value,
-                        })
-                      )
-                    }
-                    style={
-                      styles.input
-                    }
-                    placeholder="Prix réel"
-                  />
-                }
-              />
-            ) : (
-              <FormField
-                label="Prix de sortie"
-                input={
-                  <input
-                    value={
-                      tradeExitPrice
-                        ? formatNumber(
-                            tradeExitPrice,
-                            tradeForm.asset ===
-                              "XAUUSD" ||
-                              tradeForm.asset ===
-                                "USDJPY"
-                              ? 2
-                              : 5
-                          )
-                        : "-"
-                    }
-                    readOnly
-                    style={
-                      styles.input
-                    }
-                  />
-                }
-              />
-            )}
-
-            <FormField
-              label="Frais"
-              input={
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    tradeForm.fees
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        fees:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                  placeholder="0"
-                />
-              }
-            />
-
-            <FormField
-              label="Swap"
-              input={
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    tradeForm.swap
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        swap:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                  placeholder="0"
-                />
-              }
-            />
-          </div>
-
-          <div
-            style={{
-              ...styles.grid4,
-              marginTop: "13px",
-            }}
-          >
-            <MetricCard
-              label="Prix de sortie"
-              value={
-                tradeExitPrice
-                  ? formatNumber(
-                      tradeExitPrice,
-                      tradeForm.asset ===
-                        "XAUUSD" ||
-                        tradeForm.asset ===
-                          "USDJPY"
-                        ? 2
-                        : 5
-                    )
-                  : "-"
-              }
-            />
-
-            <MetricCard
-              label="Résultat pips"
-              value={`${formatNumber(
-                tradeResultPips
-              )} pips`}
-              valueColor={getResultColor(
-                tradeResultPips
-              )}
-            />
-
-            <MetricCard
-              label="Résultat"
-              value={formatMoney(
-                tradeNetResult
-              )}
-              valueColor={getResultColor(
-                tradeNetResult
-              )}
-            />
-
-            <MetricCard
-              label="Résultat R"
-              value={`${formatNumber(
-                tradeResultR
-              )} R`}
-              valueColor={getResultColor(
-                tradeResultR
-              )}
-            />
-          </div>
-
-          <FormSectionTitle
-            title="Analyse du trade"
-          />
-
-          <div
-            style={
-              styles.formGrid3
-            }
-          >
-            <FormField
-              label="Setup"
-              input={
-                <select
-                  value={
-                    tradeForm.setup
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        setup:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  {SETUPS.map(
-                    (setup) => (
-                      <option
-                        key={setup}
-                        value={
-                          setup
-                        }
-                      >
-                        {setup}
-                      </option>
-                    )
-                  )}
-                </select>
-              }
-            />
-
-            <FormField
-              label="Émotion"
-              input={
-                <input
-                  value={
-                    tradeForm.emotion
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        emotion:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                  placeholder="Ex : calme, FOMO..."
-                />
-              }
-            />
-
-            <FormField
-              label="Respect du plan"
-              input={
-                <select
-                  value={
-                    tradeForm.planAdherence
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        planAdherence:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={
-                    styles.input
-                  }
-                >
-                  <option value="Oui">
-                    Oui
-                  </option>
-
-                  <option value="Partiellement">
-                    Partiellement
-                  </option>
-
-                  <option value="Non">
-                    Non
-                  </option>
-                </select>
-              }
-            />
-          </div>
-
-          <div
-            style={{
-              marginTop: "13px",
-              display: "grid",
-              gap: "13px",
-            }}
-          >
-            <FormField
-              label="Raison d'entrée"
-              input={
-                <textarea
-                  value={
-                    tradeForm.entryReason
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        entryReason:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={{
-                    ...styles.input,
-                    minHeight:
-                      "70px",
-                    resize:
-                      "vertical",
-                  }}
-                />
-              }
-            />
-
-            <FormField
-              label="Raison de sortie"
-              input={
-                <textarea
-                  value={
-                    tradeForm.exitReason
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        exitReason:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={{
-                    ...styles.input,
-                    minHeight:
-                      "70px",
-                    resize:
-                      "vertical",
-                  }}
-                />
-              }
-            />
-
-            <FormField
-              label="Erreurs / fautes"
-              input={
-                <textarea
-                  value={
-                    tradeForm.mistakes
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        mistakes:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={{
-                    ...styles.input,
-                    minHeight:
-                      "70px",
-                    resize:
-                      "vertical",
-                  }}
-                />
-              }
-            />
-
-            <FormField
-              label="Notes"
-              input={
-                <textarea
-                  value={
-                    tradeForm.notes
-                  }
-                  onChange={(event) =>
-                    setTradeForm(
-                      (current) => ({
-                        ...current,
-                        notes:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  style={{
-                    ...styles.input,
-                    minHeight:
-                      "90px",
-                    resize:
-                      "vertical",
-                  }}
-                />
-              }
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "flex-end",
-              gap: "8px",
-              marginTop: "20px",
-            }}
-          >
-            <button
-              style={styles.button}
-              onClick={() =>
-                setTradeModalOpen(
-                  false
-                )
-              }
-            >
-              Annuler
-            </button>
-
-            <button
-              style={{
-                ...styles.button,
-                ...styles.primaryButton,
-              }}
-              onClick={
-                saveTrade
-              }
-            >
-              <Check size={14} />
-              Enregistrer le trade
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* =======================================================
-     SIDEBAR
-  ======================================================= */
-
-  function Sidebar() {
-    const items = [
-      {
-        id: "dashboard",
-        label: "Dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        id: "journal",
-        label: "Journal",
-        icon: BookOpen,
-      },
-      {
-        id: "capitals",
-        label: "Capitaux",
-        icon: WalletCards,
-      },
-      {
-        id: "calendar",
-        label: "Calendrier",
-        icon: CalendarDays,
-      },
-      {
-        id: "calculator",
-        label: "Calculateur",
-        icon: Calculator,
-      },
-      {
-        id: "settings",
-        label: "Paramètres",
-        icon: Settings,
-      },
-    ];
-
-    return (
-      <>
-        {sidebarOpen && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background:
-                "rgba(2,6,23,.65)",
-              zIndex: 39,
-            }}
-            onClick={() =>
-              setSidebarOpen(false)
-            }
-          />
-        )}
-
-        <aside
-          style={{
-            ...styles.sidebar,
-            position:
-              window.innerWidth <=
-              800
-                ? "fixed"
-                : "relative",
-            left:
-              window.innerWidth <=
-              800
-                ? sidebarOpen
-                  ? 0
-                  : "-270px"
-                : 0,
-            top: 0,
-            bottom: 0,
-            zIndex: 40,
-            transition:
-              "left .2s ease",
-            height:
-              window.innerWidth <=
-              800
-                ? "100vh"
-                : "auto",
-          }}
-        >
-          <div
-            style={styles.logo}
-          >
-            <div
-              style={
-                styles.logoIcon
-              }
-            >
-              <BarChart3
-                size={21}
-              />
-            </div>
-
-            <div>
-              <div
-                style={
-                  styles.logoTitle
-                }
-              >
-                Trading Journal
-              </div>
-
-              <div
-                style={
-                  styles.logoSubtitle
-                }
-              >
-                ARCH
-              </div>
-            </div>
-          </div>
-
-          <nav style={styles.nav}>
-            {items.map(
-              (item) => {
-                const Icon =
-                  item.icon;
-
-                const active =
-                  activePage ===
-                  item.id;
-
-                return (
-                  <button
-                    key={
-                      item.id
-                    }
-                    style={{
-                      ...styles.navButton,
-                      ...(active
-                        ? styles.navButtonActive
-                        : {}),
-                    }}
-                    onClick={() =>
-                      navigate(
-                        item.id
-                      )
-                    }
-                  >
-                    <Icon
-                      size={17}
-                    />
-
-                    {item.label}
-                  </button>
-                );
-              }
-            )}
-          </nav>
-
-          <div
-            style={{
-              marginTop:
-                "auto",
-              padding:
-                "15px 8px 0",
-              borderTop:
-                "1px solid #1e293b",
-            }}
-          >
-            <div
-              style={{
-                color:
-                  "#475569",
-                fontSize:
-                  "10px",
-                lineHeight: 1.5,
-              }}
-            >
-              Données locales
-              <br />
-              Trading Journal v1.0
-            </div>
-          </div>
-        </aside>
-      </>
-    );
-  }
-
-  /* =======================================================
-     TOPBAR
-  ======================================================= */
-
-  function Topbar() {
-    const titles = {
-      dashboard:
-        "Dashboard",
-      journal:
-        "Journal",
-      capitals:
-        "Capitaux",
-      calendar:
-        "Calendrier",
-      calculator:
-        "Calculateur",
-      settings:
-        "Paramètres",
-    };
-
-    return (
-      <header
-        style={
-          styles.topbar
-        }
-      >
-        <div
-          style={
-            styles.topbarLeft
-          }
-        >
-          <button
-            style={{
-              ...styles.button,
-              padding: "7px",
-            }}
-            onClick={() =>
-              setSidebarOpen(
-                true
-              )
-            }
-          >
-            <Menu size={16} />
-          </button>
-
-          <span
-            style={
-              styles.topbarTitle
-            }
-          >
-            {titles[
-              activePage
-            ]}
-          </span>
-        </div>
-
-        <span
-          style={
-            styles.topbarStatus
-          }
-        >
-          ● Données locales
-        </span>
-      </header>
-    );
   }
 
   return (
-    <div style={styles.app}>
-      <Sidebar />
+    <div className="app">
+      <Sidebar
+        activePage={
+          activePage
+        }
+        navigate={navigate}
+        open={sidebarOpen}
+      />
 
-      <main
-        style={styles.main}
-      >
-        <Topbar />
+      <div className="main-shell">
+        <Topbar
+          title={
+            pageTitles[
+              activePage
+            ]
+          }
+          onMenu={() =>
+            setSidebarOpen(
+              (value) =>
+                !value
+            )
+          }
+        />
 
-        <div
-          style={styles.content}
-        >
+        <main>
           {renderPage()}
-        </div>
-      </main>
+        </main>
+      </div>
 
       {notification && (
         <div
-          style={{
-            ...styles.notification,
-            borderColor:
-              notification.type ===
-              "error"
-                ? "#7f1d1d"
-                : "#14532d",
-          }}
+          className={`notification ${notification.type}`}
         >
-          {notification.message}
+          <Check size={17} />
+
+          <span>
+            {
+              notification.message
+            }
+          </span>
         </div>
       )}
 
-      <CapitalModal />
-      <TradeModal />
-    </div>
-  );
-}
-
-/* =========================================================
-   COMPONENTS
-========================================================= */
-
-function PageTitle({
-  title,
-  subtitle,
-  action,
-}) {
-  return (
-    <div
-      style={
-        styles.pageTitle
-      }
-    >
-      <div>
-        <h1
-          style={
-            styles.pageTitleText
-          }
-        >
-          {title}
-        </h1>
-
-        <p
-          style={
-            styles.pageSubtitle
-          }
-        >
-          {subtitle}
-        </p>
-      </div>
-
-      {action}
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  valueColor,
-}) {
-  return (
-    <div
-      style={
-        styles.metricCard
-      }
-    >
-      <div
-        style={
-          styles.metricLabel
+      <CapitalModal
+        open={
+          capitalModalOpen
         }
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          ...styles.metricValue,
-          color:
-            valueColor ||
-            "#f8fafc",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function CapitalInfoRow({
-  label,
-  value,
-  valueColor,
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent:
-          "space-between",
-        gap: "12px",
-        alignItems:
-          "center",
-      }}
-    >
-      <span
-        style={{
-          color: "#64748b",
-          fontSize: "11px",
-        }}
-      >
-        {label}
-      </span>
-
-      <strong
-        style={{
-          fontSize: "12px",
-          color:
-            valueColor ||
-            "#cbd5e1",
-        }}
-      >
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-function EmptyState({
-  text,
-  action,
-}) {
-  return (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "45px 20px",
-        color: "#64748b",
-      }}
-    >
-      <CircleDollarSign
-        size={35}
-        style={{
-          marginBottom:
-            "10px",
-          opacity: 0.5,
-        }}
+        editingCapitalId={
+          editingCapitalId
+        }
+        form={capitalForm}
+        setForm={
+          setCapitalForm
+        }
+        onClose={() =>
+          setCapitalModalOpen(
+            false
+          )
+        }
+        onSave={saveCapital}
       />
 
-      <div
-        style={{
-          fontSize: "13px",
-          marginBottom:
-            action
-              ? "14px"
-              : 0,
-        }}
-      >
-        {text}
-      </div>
-
-      {action}
-    </div>
-  );
-}
-
-function FormField({
-  label,
-  input,
-}) {
-  return (
-    <div>
-      <label
-        style={
-          styles.label
+      <TradeModal
+        open={tradeModalOpen}
+        form={tradeForm}
+        setForm={setTradeForm}
+        capitals={capitals}
+        onClose={() =>
+          setTradeModalOpen(
+            false
+          )
         }
-      >
-        {label}
-      </label>
-
-      {input}
-    </div>
-  );
-}
-
-function FormSectionTitle({
-  title,
-}) {
-  return (
-    <div
-      style={{
-        marginTop: "22px",
-        marginBottom:
-          "12px",
-        paddingBottom:
-          "8px",
-        borderBottom:
-          "1px solid #1e293b",
-      }}
-    >
-      <h3
-        style={{
-          ...styles.sectionTitle,
-          fontSize: "14px",
-        }}
-      >
-        {title}
-      </h3>
-    </div>
-  );
-}
-
-function StatsTable({
-  title,
-  subtitle,
-  rows,
-}) {
-  return (
-    <div style={styles.card}>
-      <div
-        style={
-          styles.sectionHeader
-        }
-      >
-        <div>
-          <h3
-            style={
-              styles.sectionTitle
-            }
-          >
-            {title}
-          </h3>
-
-          <p
-            style={
-              styles.sectionSubtitle
-            }
-          >
-            {subtitle}
-          </p>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <EmptyState
-          text="Pas encore de données."
-        />
-      ) : (
-        <div
-          style={
-            styles.tableWrapper
-          }
-        >
-          <table
-            style={styles.table}
-          >
-            <thead>
-              <tr>
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Groupe
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Trades
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Win
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Loss
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  BE
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Win Rate
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  Avg R
-                </th>
-
-                <th
-                  style={
-                    styles.th
-                  }
-                >
-                  P&L
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {rows.map(
-                (row) => (
-                  <tr
-                    key={
-                      row.name
-                    }
-                  >
-                    <td
-                      style={
-                        styles.td
-                      }
-                    >
-                      <strong>
-                        {row.name}
-                      </strong>
-                    </td>
-
-                    <td
-                      style={
-                        styles.td
-                      }
-                    >
-                      {row.trades}
-                    </td>
-
-                    <td
-                      style={{
-                        ...styles.td,
-                        color:
-                          "#22c55e",
-                      }}
-                    >
-                      {row.wins}
-                    </td>
-
-                    <td
-                      style={{
-                        ...styles.td,
-                        color:
-                          "#ef4444",
-                      }}
-                    >
-                      {row.losses}
-                    </td>
-
-                    <td
-                      style={
-                        styles.td
-                      }
-                    >
-                      {
-                        row.breakeven
-                      }
-                    </td>
-
-                    <td
-                      style={
-                        styles.td
-                      }
-                    >
-                      {formatPercent(
-                        row.winRate
-                      )}
-                    </td>
-
-                    <td
-                      style={{
-                        ...styles.td,
-                        color:
-                          getResultColor(
-                            row.avgR
-                          ),
-                      }}
-                    >
-                      {formatNumber(
-                        row.avgR
-                      )}{" "}
-                      R
-                    </td>
-
-                    <td
-                      style={{
-                        ...styles.td,
-                        color:
-                          getResultColor(
-                            row.totalPnl
-                          ),
-                        fontWeight:
-                          800,
-                      }}
-                    >
-                      {formatMoney(
-                        row.totalPnl
-                      )}
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RRTable({
-  title,
-  rows,
-}) {
-  return (
-    <div
-      style={{
-        ...styles.card,
-        marginTop: "20px",
-      }}
-    >
-      <div
-        style={
-          styles.sectionHeader
-        }
-      >
-        <div>
-          <h3
-            style={
-              styles.sectionTitle
-            }
-          >
-            {title}
-          </h3>
-
-          <p
-            style={
-              styles.sectionSubtitle
-            }
-          >
-            Comparaison de la performance
-            selon le RR utilisé sur les trades.
-          </p>
-        </div>
-      </div>
-
-      <div
-        style={
-          styles.tableWrapper
-        }
-      >
-        <table
-          style={styles.table}
-        >
-          <thead>
-            <tr>
-              <th
-                style={
-                  styles.th
-                }
-              >
-                RR
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                Trades
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                Win
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                Loss
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                BE
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                Win Rate
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                Avg R
-              </th>
-
-              <th
-                style={
-                  styles.th
-                }
-              >
-                P&L
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.map(
-              (row) => (
-                <tr
-                  key={
-                    row.rr
-                  }
-                >
-                  <td
-                    style={
-                      styles.td
-                    }
-                  >
-                    <strong>
-                      RR{row.rr}
-                    </strong>
-                  </td>
-
-                  <td
-                    style={
-                      styles.td
-                    }
-                  >
-                    {row.trades}
-                  </td>
-
-                  <td
-                    style={{
-                      ...styles.td,
-                      color:
-                        "#22c55e",
-                    }}
-                  >
-                    {row.wins}
-                  </td>
-
-                  <td
-                    style={{
-                      ...styles.td,
-                      color:
-                        "#ef4444",
-                    }}
-                  >
-                    {row.losses}
-                  </td>
-
-                  <td
-                    style={
-                      styles.td
-                    }
-                  >
-                    {
-                      row.breakeven
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      styles.td
-                    }
-                  >
-                    {formatPercent(
-                      row.winRate
-                    )}
-                  </td>
-
-                  <td
-                    style={{
-                      ...styles.td,
-                      color:
-                        getResultColor(
-                          row.avgR
-                        ),
-                    }}
-                  >
-                    {formatNumber(
-                      row.avgR
-                    )}{" "}
-                    R
-                  </td>
-
-                  <td
-                    style={{
-                      ...styles.td,
-                      color:
-                        getResultColor(
-                          row.totalPnl
-                        ),
-                      fontWeight:
-                        800,
-                    }}
-                  >
-                    {formatMoney(
-                      row.totalPnl
-                    )}
-                  </td>
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </div>
+        onSave={saveTrade}
+      />
     </div>
   );
 }
