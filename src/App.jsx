@@ -353,15 +353,6 @@ function getTradeR(trade) {
     : 0;
 }
 
-/*
- * Calcul du P/L robuste.
- *
- * Priorité :
- * 1. P/L réellement enregistré.
- * 2. resultR × risque.
- * 3. calcul direct avec prix / pips / lot / valeur du pip.
- * 4. grossPnl - frais + swap.
- */
 function getTradeNetPnl(trade) {
   if (!trade) return 0;
 
@@ -387,11 +378,6 @@ function getTradeNetPnl(trade) {
   const swap =
     Number(trade.swap) || 0;
 
-  /*
-   * Nouveau format :
-   * si pnl est réellement différent de zéro,
-   * on l'utilise directement.
-   */
   if (
     Number.isFinite(storedPnl) &&
     storedPnl !== 0
@@ -399,10 +385,6 @@ function getTradeNetPnl(trade) {
     return storedPnl;
   }
 
-  /*
-   * Compatibilité avec les anciens trades :
-   * certains avaient pnl = 0 mais resultR correct.
-   */
   if (
     Number.isFinite(resultR) &&
     Number.isFinite(riskMoney) &&
@@ -414,10 +396,6 @@ function getTradeNetPnl(trade) {
     );
   }
 
-  /*
-   * Si le résultat R n'existe pas,
-   * on recalcule directement avec les prix.
-   */
   const entry = Number(
     trade.entry
   );
@@ -465,10 +443,6 @@ function getTradeNetPnl(trade) {
     );
   }
 
-  /*
-   * Dernier fallback :
-   * grossPnl - fees + swap.
-   */
   if (Number.isFinite(grossPnl)) {
     return (
       grossPnl -
@@ -574,6 +548,42 @@ function isSameMonth(
   );
 }
 
+function isWithinPeriod(
+  date,
+  period
+) {
+  if (!date) return false;
+
+  if (period === "all") {
+    return true;
+  }
+
+  const now = new Date();
+
+  if (period === "today") {
+    return isSameDay(
+      date,
+      now
+    );
+  }
+
+  if (period === "week") {
+    return isSameWeek(
+      date,
+      now
+    );
+  }
+
+  if (period === "month") {
+    return isSameMonth(
+      date,
+      now
+    );
+  }
+
+  return true;
+}
+
 function calculatePerformanceStats(
   list,
   initialCapital
@@ -642,6 +652,20 @@ function calculatePerformanceStats(
         100
       : 0;
 
+  const lossRate =
+    tradeCount > 0
+      ? (losses.length /
+          tradeCount) *
+        100
+      : 0;
+
+  const breakevenRate =
+    tradeCount > 0
+      ? (breakevens.length /
+          tradeCount) *
+        100
+      : 0;
+
   const profitFactor =
     grossLoss > 0
       ? grossProfit / grossLoss
@@ -676,7 +700,6 @@ function calculatePerformanceStats(
   let peak = equity;
 
   let maxDrawdown = 0;
-
   let maxDrawdownPercent = 0;
 
   const equityCurve = [
@@ -834,6 +857,8 @@ function calculatePerformanceStats(
     grossProfit,
     grossLoss,
     winRate,
+    lossRate,
+    breakevenRate,
     profitFactor,
     avgWin,
     avgLoss,
@@ -1235,6 +1260,9 @@ function DashboardPage({
   selectedCapitalId,
   setSelectedCapitalId,
 }) {
+  const [period, setPeriod] =
+    useState("all");
+
   const selectedCapital =
     capitals.find(
       (capital) =>
@@ -1242,11 +1270,6 @@ function DashboardPage({
         selectedCapitalId
     );
 
-  /*
-   * IMPORTANT :
-   * "all" = tous les capitaux,
-   * actifs + archivés.
-   */
   const analyzedData = useMemo(() => {
     const allClosedTrades =
       trades.filter(
@@ -1322,13 +1345,40 @@ function DashboardPage({
     selectedCapitalId,
   ]);
 
+  const periodTrades = useMemo(
+    () =>
+      analyzedData.trades.filter(
+        (trade) =>
+          isWithinPeriod(
+            getTradeDate(trade),
+            period
+          )
+      ),
+    [analyzedData.trades, period]
+  );
+
   const stats = useMemo(
+    () =>
+      calculatePerformanceStats(
+        periodTrades,
+        analyzedData.initialCapital
+      ),
+    [
+      periodTrades,
+      analyzedData.initialCapital,
+    ]
+  );
+
+  const lifetimeStats = useMemo(
     () =>
       calculatePerformanceStats(
         analyzedData.trades,
         analyzedData.initialCapital
       ),
-    [analyzedData]
+    [
+      analyzedData.trades,
+      analyzedData.initialCapital,
+    ]
   );
 
   const groupedStats = useMemo(() => {
@@ -1337,7 +1387,7 @@ function DashboardPage({
     ) => {
       const map = new Map();
 
-      analyzedData.trades.forEach(
+      periodTrades.forEach(
         (trade) => {
           const key =
             trade[field] ||
@@ -1405,15 +1455,13 @@ function DashboardPage({
         "exitType"
       ),
     };
-  }, [
-    analyzedData.trades,
-  ]);
+  }, [periodTrades]);
 
   const rrStats = useMemo(() => {
     return RR_OPTIONS.map(
       (rr) => {
         const group =
-          analyzedData.trades.filter(
+          periodTrades.filter(
             (trade) =>
               Number(
                 trade.rr
@@ -1446,9 +1494,83 @@ function DashboardPage({
         };
       }
     );
-  }, [
-    analyzedData.trades,
-  ]);
+  }, [periodTrades]);
+
+  const recentTrades = useMemo(
+    () =>
+      periodTrades
+        .slice()
+        .sort(
+          (a, b) =>
+            getTradeTimestamp(b) -
+            getTradeTimestamp(a)
+        )
+        .slice(0, 8),
+    [periodTrades]
+  );
+
+  const capitalInitialTotal =
+    capitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.initialCapital
+        ) || 0),
+      0
+    );
+
+  const capitalBalanceTotal =
+    capitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.currentBalance
+        ) || 0),
+      0
+    );
+
+  const globalStats = useMemo(
+    () =>
+      calculatePerformanceStats(
+        trades,
+        capitalInitialTotal
+      ),
+    [trades, capitalInitialTotal]
+  );
+
+  const periodLabel =
+    period === "today"
+      ? "Aujourd'hui"
+      : period === "week"
+      ? "Cette semaine"
+      : period === "month"
+      ? "Ce mois"
+      : "Toute la période";
+
+  const selectedRisk =
+    selectedCapital
+      ? getCapitalRisk(
+          selectedCapital
+        )
+      : capitals.reduce(
+          (sum, capital) =>
+            sum +
+            getCapitalRisk(
+              capital
+            ),
+          0
+        );
+
+  const selectedRiskPercent =
+    selectedCapital
+      ? getCapitalRiskPercent(
+          selectedCapital
+        )
+      : capitalBalanceTotal > 0
+      ? (selectedRisk /
+          capitalBalanceTotal) *
+        100
+      : 0;
 
   return (
     <div className="page">
@@ -1456,7 +1578,7 @@ function DashboardPage({
         <PageTitle
           icon={LayoutDashboard}
           title="Dashboard"
-          subtitle="Analysez les performances du capital sélectionné."
+          subtitle="Vue complète de vos performances de trading."
         />
 
         <div className="dashboard-filter">
@@ -1506,6 +1628,39 @@ function DashboardPage({
         </div>
       </div>
 
+      <div className="toolbar">
+        <div className="select-wrapper">
+          <select
+            value={period}
+            onChange={(event) =>
+              setPeriod(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toute la période
+            </option>
+
+            <option value="today">
+              Aujourd'hui
+            </option>
+
+            <option value="week">
+              Cette semaine
+            </option>
+
+            <option value="month">
+              Ce mois
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+      </div>
+
       <div className="analysis-banner">
         <div>
           <span>
@@ -1514,6 +1669,16 @@ function DashboardPage({
 
           <strong>
             {analyzedData.name}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Période
+          </span>
+
+          <strong>
+            {periodLabel}
           </strong>
         </div>
 
@@ -1576,43 +1741,10 @@ function DashboardPage({
                   2
                 )
           }
-          subtitle={`Gross profit ${formatMoney(
+          subtitle={`Gain brut ${formatMoney(
             stats.grossProfit
           )}`}
           icon={BarChart3}
-        />
-
-        <MetricCard
-          title="P/L aujourd'hui"
-          value={formatMoney(
-            stats.pnlToday
-          )}
-          icon={CalendarDays}
-          tone={getResultClass(
-            stats.pnlToday
-          )}
-        />
-
-        <MetricCard
-          title="P/L semaine"
-          value={formatMoney(
-            stats.pnlWeek
-          )}
-          icon={CalendarDays}
-          tone={getResultClass(
-            stats.pnlWeek
-          )}
-        />
-
-        <MetricCard
-          title="P/L mois"
-          value={formatMoney(
-            stats.pnlMonth
-          )}
-          icon={CalendarDays}
-          tone={getResultClass(
-            stats.pnlMonth
-          )}
         />
 
         <MetricCard
@@ -1623,6 +1755,131 @@ function DashboardPage({
           )}R`}
           subtitle={`${stats.trades} trades`}
           icon={Calculator}
+        />
+
+        <MetricCard
+          title="Drawdown max."
+          value={formatMoney(
+            stats.maxDrawdown
+          )}
+          subtitle={formatPercent(
+            stats.maxDrawdownPercent
+          )}
+          icon={BarChart3}
+          tone="negative"
+        />
+
+        <MetricCard
+          title="Meilleure série"
+          value={
+            `${stats.bestStreak} trade${
+              stats.bestStreak > 1
+                ? "s"
+                : ""
+            }`
+          }
+          subtitle="Gains consécutifs"
+          icon={Check}
+        />
+
+        <MetricCard
+          title="Pire série"
+          value={
+            `${stats.worstStreak} trade${
+              stats.worstStreak > 1
+                ? "s"
+                : ""
+            }`
+          }
+          subtitle="Pertes consécutives"
+          icon={BarChart3}
+          tone="negative"
+        />
+      </div>
+
+      <div className="metrics-grid">
+        <MetricCard
+          title="P/L aujourd'hui"
+          value={formatMoney(
+            lifetimeStats.pnlToday
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            lifetimeStats.pnlToday
+          )}
+        />
+
+        <MetricCard
+          title="P/L semaine"
+          value={formatMoney(
+            lifetimeStats.pnlWeek
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            lifetimeStats.pnlWeek
+          )}
+        />
+
+        <MetricCard
+          title="P/L mois"
+          value={formatMoney(
+            lifetimeStats.pnlMonth
+          )}
+          icon={CalendarDays}
+          tone={getResultClass(
+            lifetimeStats.pnlMonth
+          )}
+        />
+
+        <MetricCard
+          title="Risque / trade"
+          value={formatMoney(
+            selectedRisk
+          )}
+          subtitle={`≈ ${formatPercent(
+            selectedRiskPercent
+          )} du capital`}
+          icon={CircleDollarSign}
+        />
+
+        <MetricCard
+          title="Gain moyen"
+          value={formatMoney(
+            stats.avgWin
+          )}
+          subtitle={`${stats.wins} trades gagnants`}
+          icon={Check}
+          tone="positive"
+        />
+
+        <MetricCard
+          title="Perte moyenne"
+          value={formatMoney(
+            stats.avgLoss
+          )}
+          subtitle={`${stats.losses} trades perdants`}
+          icon={BarChart3}
+          tone="negative"
+        />
+
+        <MetricCard
+          title="Break-even"
+          value={formatPercent(
+            stats.breakevenRate
+          )}
+          subtitle={`${stats.breakevens} trade${
+            stats.breakevens > 1
+              ? "s"
+              : ""
+          }`}
+          icon={CircleDollarSign}
+        />
+
+        <MetricCard
+          title="Trades"
+          value={stats.trades}
+          subtitle={`${stats.wins} W · ${stats.losses} L · ${stats.breakevens} BE`}
+          icon={BookOpen}
         />
       </div>
 
@@ -1693,6 +1950,143 @@ function DashboardPage({
               la courbe.
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>
+              Derniers trades
+            </h2>
+
+            <p>
+              Les derniers trades de
+              la période sélectionnée.
+            </p>
+          </div>
+        </div>
+
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Actif</th>
+                <th>Direction</th>
+                <th>Setup</th>
+                <th>Session</th>
+                <th>RR</th>
+                <th>Sortie</th>
+                <th>P/L</th>
+                <th>R</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {recentTrades.length ===
+              0 ? (
+                <tr>
+                  <td
+                    colSpan="9"
+                    className="empty-cell"
+                  >
+                    Aucun trade sur
+                    cette période.
+                  </td>
+                </tr>
+              ) : (
+                recentTrades.map(
+                  (trade) => {
+                    const pnl =
+                      getTradeNetPnl(
+                        trade
+                      );
+
+                    return (
+                      <tr
+                        key={
+                          trade.id
+                        }
+                      >
+                        <td>
+                          {formatDate(
+                            trade.dateTime
+                          )}
+                        </td>
+
+                        <td>
+                          {
+                            trade.asset
+                          }
+                        </td>
+
+                        <td>
+                          {
+                            trade.direction
+                          }
+                        </td>
+
+                        <td>
+                          {
+                            trade.setup ||
+                            "-"
+                          }
+                        </td>
+
+                        <td>
+                          {
+                            trade.session ||
+                            "-"
+                          }
+                        </td>
+
+                        <td>
+                          RR
+                          {
+                            trade.rr
+                          }
+                        </td>
+
+                        <td>
+                          {
+                            trade.exitType ||
+                            "-"
+                          }
+                        </td>
+
+                        <td
+                          className={getResultClass(
+                            pnl
+                          )}
+                        >
+                          {formatMoney(
+                            pnl
+                          )}
+                        </td>
+
+                        <td
+                          className={getResultClass(
+                            getTradeR(
+                              trade
+                            )
+                          )}
+                        >
+                          {formatNumber(
+                            getTradeR(
+                              trade
+                            ),
+                            2
+                          )}
+                          R
+                        </td>
+                      </tr>
+                    );
+                  }
+                )
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -2044,14 +2438,7 @@ function DashboardPage({
 
             <strong>
               {formatMoney(
-                capitals.reduce(
-                  (sum, capital) =>
-                    sum +
-                    (Number(
-                      capital.initialCapital
-                    ) || 0),
-                  0
-                )
+                capitalInitialTotal
               )}
             </strong>
           </div>
@@ -2063,14 +2450,7 @@ function DashboardPage({
 
             <strong>
               {formatMoney(
-                capitals.reduce(
-                  (sum, capital) =>
-                    sum +
-                    (Number(
-                      capital.currentBalance
-                    ) || 0),
-                  0
-                )
+                capitalBalanceTotal
               )}
             </strong>
           </div>
@@ -2082,24 +2462,49 @@ function DashboardPage({
 
             <strong
               className={getResultClass(
-                calculatePerformanceStats(
-                  trades,
-                  capitals.reduce(
-                    (sum, capital) =>
-                      sum +
-                      (Number(
-                        capital.initialCapital
-                      ) || 0),
-                    0
-                  )
-                ).totalPnl
+                globalStats.totalPnl
               )}
             >
               {formatMoney(
-                calculatePerformanceStats(
-                  trades,
-                  0
-                ).totalPnl
+                globalStats.totalPnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Rendement total
+            </span>
+
+            <strong
+              className={getResultClass(
+                globalStats.pnlPercent
+              )}
+            >
+              {formatPercent(
+                globalStats.pnlPercent
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades clôturés
+            </span>
+
+            <strong>
+              {globalStats.trades}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Win rate global
+            </span>
+
+            <strong>
+              {formatPercent(
+                globalStats.winRate
               )}
             </strong>
           </div>
@@ -4279,11 +4684,6 @@ export default function App() {
       clearTimeout(timer);
   }, [notification]);
 
-  /*
-   * IMPORTANT :
-   * On conserve "all" comme valeur
-   * valide du filtre Dashboard.
-   */
   useEffect(() => {
     if (
       dashboardCapitalFilter ===
@@ -4515,11 +4915,6 @@ export default function App() {
         ]
       );
 
-      /*
-       * Si aucun capital n'existait
-       * auparavant, on sélectionne
-       * automatiquement celui-ci.
-       */
       if (
         dashboardCapitalFilter ===
         "all"
@@ -4923,10 +5318,6 @@ export default function App() {
       ]
     );
 
-    /*
-     * Le P/L du trade est ajouté
-     * au solde du capital concerné.
-     */
     setCapitals(
       (current) =>
         current.map(
