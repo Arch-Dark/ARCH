@@ -66,14 +66,13 @@ button {
 }
 
 /* =========================================================
-   APP / LAYOUT PRINCIPAL
+   APP
    ========================================================= */
 
 .app,
 .app-shell {
-  display: flex;
-  min-height: 100vh;
   width: 100%;
+  min-height: 100vh;
 
   background:
     radial-gradient(
@@ -94,44 +93,43 @@ button {
   left: 0;
   bottom: 0;
 
+  width: var(--sidebar-width);
+
   display: flex;
   flex-direction: column;
 
-  background: rgba(10, 15, 23, 0.96);
+  padding: 20px 14px;
+
+  background: rgba(10, 15, 23, 0.98);
   border-right: 1px solid var(--border);
 
-  transition: width 0.2s ease;
-
   z-index: 100;
+
+  overflow-y: auto;
 }
 
-.sidebar-open {
+.sidebar.open {
   width: var(--sidebar-width);
 }
 
-.sidebar-closed {
-  width: var(--sidebar-collapsed-width);
-}
-
-.sidebar-header {
-  height: 82px;
-
-  display: flex;
-  align-items: center;
-
-  padding: 0 20px;
-
-  border-bottom: 1px solid var(--border);
-}
+/* =========================================================
+   BRAND
+   ========================================================= */
 
 .brand {
   display: flex;
   align-items: center;
+
   gap: 12px;
+
+  min-height: 48px;
+
+  margin-bottom: 28px;
+
+  padding: 0 8px;
 }
 
-.brand-mark,
-.brand-icon {
+.brand-mark {
   width: 40px;
   height: 40px;
 
@@ -149,28 +147,33 @@ button {
     #326bd5
   );
 
-  color: white;
-  font-size: 13px;
+  color: #ffffff;
+
+  font-size: 14px;
   font-weight: 800;
+
   letter-spacing: 0.5px;
 }
 
-.brand-text {
+.brand > div:last-child {
+  min-width: 0;
+
   display: flex;
   flex-direction: column;
+
   gap: 2px;
 }
 
-.brand strong,
-.brand-text strong {
+.brand strong {
   color: var(--text-primary);
+
   font-size: 14px;
   font-weight: 700;
 }
 
-.brand span,
-.brand-text span {
+.brand span {
   color: var(--text-muted);
+
   font-size: 11px;
 }
 
@@ -178,114 +181,79 @@ button {
    NAVIGATION
    ========================================================= */
 
-.sidebar-navigation {
+.sidebar nav {
+  width: 100%;
+
   display: flex;
   flex-direction: column;
 
   gap: 5px;
-
-  padding: 25px 12px;
 }
 
-.navigation-section-title {
-  min-height: 16px;
-
-  padding: 0 10px;
-  margin-bottom: 8px;
-
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-}
-
-.navigation-item {
+.nav-item {
   width: 100%;
   min-height: 44px;
 
   display: flex;
   align-items: center;
+
   gap: 12px;
 
-  padding: 0 11px;
+  margin: 0;
+  padding: 0 12px;
 
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 8px;
+
+  outline: none;
 
   color: var(--text-secondary);
   background: transparent;
 
   font-size: 13px;
+  font-weight: 500;
+
   text-align: left;
+
+  appearance: none;
 
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.navigation-item:hover {
+.nav-item:hover {
   color: var(--text-primary);
+
   background: rgba(255, 255, 255, 0.04);
+
+  border-color: rgba(255, 255, 255, 0.03);
 }
 
-.navigation-item-active {
+.nav-item.active {
   color: #ffffff;
+
   background: rgba(79, 140, 255, 0.13);
+
+  border-color: rgba(79, 140, 255, 0.18);
 }
 
-.navigation-item-active svg {
-  color: var(--accent-light);
-}
+.nav-item svg {
+  width: 19px;
+  height: 19px;
 
-.sidebar-bottom {
-  margin-top: auto;
-  padding: 15px 12px;
-
-  border-top: 1px solid var(--border);
-}
-
-.sidebar-collapse-button {
-  width: 100%;
-  min-height: 40px;
-
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  margin-top: 6px;
-  padding: 0 11px;
-
-  border: 0;
-  background: transparent;
-
-  color: var(--text-muted);
-  font-size: 12px;
-  text-align: left;
-}
-
-.sidebar-collapse-button:hover {
-  color: var(--text-secondary);
-}
-
-.rotate-90 {
-  transform: rotate(-90deg);
-}
-
-.rotate-minus-90 {
-  transform: rotate(90deg);
-}
-
-/* =========================================================
-   ICÔNES LUCIDE
-   ========================================================= */
-
-svg {
-  display: block;
   flex-shrink: 0;
+
+  color: currentColor;
+
+  stroke: currentColor;
+
+  fill: none;
 }
 
-button svg {
-  pointer-events: none;
+.nav-item.active svg {
+  color: var(--accent-light);
 }
 
 /* =========================================================
@@ -294,18 +262,12 @@ button svg {
 
 .main-shell,
 .main-content {
-  width: 100%;
+  width: calc(100% - var(--sidebar-width));
+
   min-width: 0;
   min-height: 100vh;
 
   margin-left: var(--sidebar-width);
-
-  transition: margin-left 0.2s ease;
-}
-
-.sidebar-closed ~ .main-shell,
-.sidebar-closed ~ .main-content {
-  margin-left: var(--sidebar-collapsed-width);
 }
 
 /* =========================================================
@@ -313,15 +275,16 @@ button svg {
    ========================================================= */
 
 .topbar {
+  width: 100%;
   height: 82px;
 
   display: flex;
   align-items: center;
-  justify-content: space-between;
 
   padding: 0 38px;
 
   border-bottom: 1px solid var(--border);
+
   background: rgba(7, 11, 18, 0.78);
 
   backdrop-filter: blur(15px);
@@ -333,49 +296,29 @@ button svg {
   z-index: 50;
 }
 
-.topbar-left {
+.topbar > div {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+
+  gap: 4px;
 }
 
-.topbar-eyebrow {
-  margin: 0 0 4px;
-
+.topbar span {
   color: var(--text-muted);
+
   font-size: 9px;
   font-weight: 700;
+
   letter-spacing: 1.5px;
+
+  text-transform: uppercase;
 }
 
-.topbar h1 {
-  margin: 0;
-
+.topbar strong {
   color: var(--text-primary);
+
   font-size: 20px;
   font-weight: 650;
-}
-
-.topbar-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-
-  flex-shrink: 0;
-
-  border-radius: 50%;
-
-  background: var(--success);
-
-  box-shadow: 0 0 10px rgba(50, 196, 141, 0.5);
 }
 
 .mobile-menu {
@@ -386,6 +329,8 @@ button svg {
 
   align-items: center;
   justify-content: center;
+
+  margin-right: 12px;
 
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -400,6 +345,7 @@ button svg {
 
 .page-content {
   max-width: 1600px;
+
   margin: 0 auto;
 
   padding: 35px 38px 50px;
@@ -417,8 +363,10 @@ button svg {
 
 .section-label {
   color: var(--accent-light);
+
   font-size: 9px;
   font-weight: 700;
+
   letter-spacing: 1.4px;
 }
 
@@ -426,8 +374,10 @@ button svg {
   margin: 7px 0 5px;
 
   color: var(--text-primary);
+
   font-size: 26px;
   font-weight: 650;
+
   letter-spacing: -0.5px;
 }
 
@@ -435,18 +385,25 @@ button svg {
   margin: 0;
 
   color: var(--text-secondary);
+
   font-size: 13px;
 }
+
+/* =========================================================
+   CAPITAL SELECTOR
+   ========================================================= */
 
 .capital-selector {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+
   gap: 6px;
 }
 
 .capital-selector span {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -456,6 +413,7 @@ button svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 15px;
 
   padding: 9px 12px;
@@ -475,7 +433,9 @@ button svg {
 
 .stats-grid {
   display: grid;
+
   grid-template-columns: repeat(4, 1fr);
+
   gap: 14px;
 
   margin-bottom: 14px;
@@ -502,6 +462,7 @@ button svg {
 
 .stat-title {
   color: var(--text-muted);
+
   font-size: 11px;
   font-weight: 500;
 }
@@ -510,13 +471,16 @@ button svg {
   margin: 10px 0 5px;
 
   color: var(--text-primary);
+
   font-size: 25px;
   font-weight: 650;
+
   letter-spacing: -0.4px;
 }
 
 .stat-subtitle {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -526,7 +490,9 @@ button svg {
 
 .dashboard-grid {
   display: grid;
+
   grid-template-columns: 2fr 1fr;
+
   gap: 14px;
 
   margin-bottom: 14px;
@@ -559,8 +525,10 @@ button svg {
 
 .card-label {
   color: var(--text-muted);
+
   font-size: 9px;
   font-weight: 700;
+
   letter-spacing: 1.2px;
 }
 
@@ -568,6 +536,7 @@ button svg {
   margin: 5px 0 0;
 
   color: var(--text-primary);
+
   font-size: 14px;
   font-weight: 600;
 }
@@ -575,6 +544,7 @@ button svg {
 .card-action {
   display: flex;
   align-items: center;
+
   gap: 5px;
 
   padding: 7px 9px;
@@ -587,6 +557,10 @@ button svg {
 
   font-size: 10px;
 }
+
+/* =========================================================
+   EMPTY CHART
+   ========================================================= */
 
 .empty-chart {
   min-height: 310px;
@@ -607,6 +581,7 @@ button svg {
 
 .empty-chart strong {
   color: var(--text-secondary);
+
   font-size: 13px;
 }
 
@@ -614,8 +589,11 @@ button svg {
   max-width: 280px;
 
   color: var(--text-muted);
+
   font-size: 11px;
+
   text-align: center;
+
   line-height: 1.5;
 }
 
@@ -643,11 +621,13 @@ button svg {
 
 .statistic-row span {
   color: var(--text-secondary);
+
   font-size: 11px;
 }
 
 .statistic-row strong {
   color: var(--text-primary);
+
   font-size: 12px;
 }
 
@@ -661,6 +641,7 @@ button svg {
 
 .trade-count {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -683,11 +664,13 @@ button svg {
 
 .empty-state strong {
   color: var(--text-secondary);
+
   font-size: 13px;
 }
 
 .empty-state span {
   color: var(--text-muted);
+
   font-size: 11px;
 }
 
@@ -732,6 +715,7 @@ button svg {
   margin: 8px 0;
 
   color: var(--text-primary);
+
   font-size: 24px;
 }
 
@@ -739,6 +723,7 @@ button svg {
   margin: 0;
 
   color: var(--text-secondary);
+
   font-size: 12px;
 }
 
@@ -748,6 +733,7 @@ button svg {
 
 .modal-backdrop {
   position: fixed;
+
   inset: 0;
 
   display: flex;
@@ -757,6 +743,7 @@ button svg {
   padding: 24px;
 
   background: rgba(0, 0, 0, 0.68);
+
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
 
@@ -765,6 +752,7 @@ button svg {
 
 .modal {
   width: min(520px, 100%);
+
   max-height: calc(100vh - 48px);
 
   overflow-y: auto;
@@ -781,6 +769,7 @@ button svg {
     0 0 0 1px rgba(255, 255, 255, 0.02);
 
   position: relative;
+
   z-index: 1001;
 }
 
@@ -791,6 +780,7 @@ button svg {
 .modal h2,
 .modal h3 {
   margin-top: 0;
+
   color: var(--text-primary);
 }
 
@@ -830,13 +820,16 @@ button svg {
 
 .form-grid {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
+
   gap: 14px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
+
   gap: 6px;
 }
 
@@ -846,6 +839,7 @@ button svg {
 
 .form-group label {
   color: var(--text-secondary);
+
   font-size: 11px;
   font-weight: 500;
 }
@@ -874,17 +868,21 @@ button svg {
 .form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.12);
+
+  box-shadow:
+    0 0 0 2px rgba(79, 140, 255, 0.12);
 }
 
 .form-group textarea {
   min-height: 100px;
+
   resize: vertical;
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+
   gap: 10px;
 
   margin-top: 22px;
@@ -905,6 +903,7 @@ button svg {
 
 .primary-button {
   border: 1px solid var(--accent);
+
   color: white;
   background: var(--accent);
 }
@@ -915,18 +914,22 @@ button svg {
 
 .secondary-button {
   border: 1px solid var(--border-light);
+
   color: var(--text-secondary);
   background: var(--surface);
 }
 
 .secondary-button:hover {
   color: var(--text-primary);
+
   background: var(--surface-light);
 }
 
 .danger-button {
   border: 1px solid rgba(240, 93, 108, 0.35);
+
   color: #ff8995;
+
   background: rgba(240, 93, 108, 0.08);
 }
 
@@ -936,11 +939,13 @@ button svg {
 
 .notification {
   position: fixed;
+
   right: 24px;
   bottom: 24px;
 
   display: flex;
   align-items: center;
+
   gap: 9px;
 
   max-width: 360px;
@@ -970,6 +975,31 @@ button svg {
 }
 
 /* =========================================================
+   LUCIDE — PROTECTION DU RENDU
+   ========================================================= */
+
+svg.lucide {
+  display: block;
+
+  width: 19px;
+  height: 19px;
+
+  flex-shrink: 0;
+
+  overflow: visible;
+
+  color: currentColor;
+
+  stroke: currentColor;
+
+  fill: none;
+}
+
+button svg {
+  pointer-events: none;
+}
+
+/* =========================================================
    RESPONSIVE
    ========================================================= */
 
@@ -984,23 +1014,39 @@ button svg {
 }
 
 @media (max-width: 760px) {
-  .sidebar-open {
-    width: var(--sidebar-collapsed-width);
+  .sidebar {
+    width: 76px;
+
+    padding: 20px 10px;
   }
 
-  .sidebar-open .brand-text,
-  .sidebar-open .brand > div:not(.brand-mark),
-  .sidebar-open .navigation-item span,
-  .sidebar-open .sidebar-collapse-button span,
-  .sidebar-open .navigation-section-title {
+  .brand {
+    justify-content: center;
+
+    padding: 0;
+
+    margin-bottom: 28px;
+  }
+
+  .brand > div:last-child {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+
+    padding: 0;
+  }
+
+  .nav-item span {
     display: none;
   }
 
   .main-shell,
-  .main-content,
-  .sidebar-closed ~ .main-shell,
-  .sidebar-closed ~ .main-content {
-    margin-left: var(--sidebar-collapsed-width);
+  .main-content {
+    width: calc(100% - 76px);
+
+    margin-left: 76px;
   }
 
   .mobile-menu {
@@ -1011,16 +1057,13 @@ button svg {
     padding: 0 20px;
   }
 
-  .topbar-status {
-    display: none;
-  }
-
   .page-content {
     padding: 25px 18px 40px;
   }
 
   .welcome-section {
     align-items: flex-start;
+
     flex-direction: column;
   }
 
@@ -1046,6 +1089,7 @@ button svg {
 
   .modal {
     max-height: calc(100vh - 24px);
+
     padding: 18px;
   }
 }
