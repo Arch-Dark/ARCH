@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   CircleDollarSign,
+  Eye,
   LayoutDashboard,
   Pencil,
   Plus,
@@ -141,6 +142,34 @@ function getTradeTimestamp(trade) {
     : 0;
 }
 
+function getDateTimeInputValue(value) {
+  if (!value) {
+    const now = new Date();
+
+    return new Date(
+      now.getTime() -
+        now.getTimezoneOffset() *
+          60000
+    )
+      .toISOString()
+      .slice(0, 16);
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Date(
+    date.getTime() -
+      date.getTimezoneOffset() *
+        60000
+  )
+    .toISOString()
+    .slice(0, 16);
+}
+
 function isBreakEvenPnl(value) {
   const pnl = Number(value);
 
@@ -265,10 +294,14 @@ function getPipValuePerLot(asset, price) {
   return 10;
 }
 
-function calculatePips(asset, priceDifference) {
+function calculatePips(
+  asset,
+  priceDifference
+) {
   return (
-    Math.abs(Number(priceDifference) || 0) *
-    getPipMultiplier(asset)
+    Math.abs(
+      Number(priceDifference) || 0
+    ) * getPipMultiplier(asset)
   );
 }
 
@@ -308,7 +341,9 @@ function calculateTP(
 ) {
   const e = Number(entry);
   const sl = Number(stopLoss);
-  const riskDistance = Math.abs(e - sl);
+  const riskDistance = Math.abs(
+    e - sl
+  );
   const ratio = Number(rr) || 1;
 
   if (
@@ -320,10 +355,16 @@ function calculateTP(
   }
 
   if (direction === "BUY") {
-    return e + riskDistance * ratio;
+    return (
+      e +
+      riskDistance * ratio
+    );
   }
 
-  return e - riskDistance * ratio;
+  return (
+    e -
+    riskDistance * ratio
+  );
 }
 
 function calculateLot(
@@ -331,8 +372,12 @@ function calculateLot(
   stopPips,
   pipValuePerLot
 ) {
-  const risk = Number(riskMoney) || 0;
-  const pips = Number(stopPips) || 0;
+  const risk =
+    Number(riskMoney) || 0;
+
+  const pips =
+    Number(stopPips) || 0;
+
   const pipValue =
     Number(pipValuePerLot) || 0;
 
@@ -355,17 +400,29 @@ function calculateLot(
 function getCapitalRisk(capital) {
   if (!capital) return 0;
 
-  if (capital.riskMode === "fixed") {
-    return Number(capital.riskAmount) || 0;
+  if (
+    capital.riskMode === "fixed"
+  ) {
+    return (
+      Number(
+        capital.riskAmount
+      ) || 0
+    );
   }
 
   const balance =
-    Number(capital.currentBalance) ||
-    Number(capital.initialCapital) ||
+    Number(
+      capital.currentBalance
+    ) ||
+    Number(
+      capital.initialCapital
+    ) ||
     0;
 
   const percentage =
-    Number(capital.riskPercent) || 0;
+    Number(
+      capital.riskPercent
+    ) || 0;
 
   return (
     balance *
@@ -373,24 +430,35 @@ function getCapitalRisk(capital) {
   );
 }
 
-function getCapitalRiskPercent(capital) {
+function getCapitalRiskPercent(
+  capital
+) {
   if (!capital) return 0;
 
   if (
-    capital.riskMode === "percentage"
+    capital.riskMode ===
+    "percentage"
   ) {
     return (
-      Number(capital.riskPercent) || 0
+      Number(
+        capital.riskPercent
+      ) || 0
     );
   }
 
   const balance =
-    Number(capital.currentBalance) ||
-    Number(capital.initialCapital) ||
+    Number(
+      capital.currentBalance
+    ) ||
+    Number(
+      capital.initialCapital
+    ) ||
     0;
 
   const riskAmount =
-    Number(capital.riskAmount) || 0;
+    Number(
+      capital.riskAmount
+    ) || 0;
 
   if (balance <= 0) {
     return 0;
@@ -418,7 +486,9 @@ function getResultClass(value) {
   return "neutral";
 }
 
-function getOutcomeClass(outcome) {
+function getOutcomeClass(
+  outcome
+) {
   if (outcome === "Win") {
     return "positive";
   }
@@ -500,7 +570,8 @@ function getTradeNetPnl(trade) {
     riskMoney > 0
   ) {
     return (
-      resultR * riskMoney
+      resultR *
+      riskMoney
     );
   }
 
@@ -556,7 +627,9 @@ function getTradeNetPnl(trade) {
       : calculatedPnl;
   }
 
-  if (Number.isFinite(grossPnl)) {
+  if (
+    Number.isFinite(grossPnl)
+  ) {
     const calculatedPnl =
       grossPnl -
       fees +
@@ -610,9 +683,11 @@ function isSameDay(
 }
 
 function getStartOfWeek(date) {
-  const result = new Date(date);
+  const result =
+    new Date(date);
 
-  const day = result.getDay();
+  const day =
+    result.getDay();
 
   const diff =
     day === 0
@@ -642,9 +717,12 @@ function isSameWeek(
   }
 
   const start =
-    getStartOfWeek(reference);
+    getStartOfWeek(
+      reference
+    );
 
-  const end = new Date(start);
+  const end =
+    new Date(start);
 
   end.setDate(
     end.getDate() + 7
@@ -682,7 +760,8 @@ function isWithinPeriod(
     return true;
   }
 
-  const now = new Date();
+  const now =
+    new Date();
 
   if (period === "today") {
     return isSameDay(
@@ -712,14 +791,21 @@ function calculatePerformanceStats(
   list,
   initialCapital
 ) {
-  const closedTrades = list
-    .filter(isClosedTrade)
-    .slice()
-    .sort(
-      (a, b) =>
-        getTradeTimestamp(a) -
-        getTradeTimestamp(b)
-    );
+  const closedTrades =
+    list
+      .filter(
+        isClosedTrade
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          getTradeTimestamp(
+            a
+          ) -
+          getTradeTimestamp(
+            b
+          )
+      );
 
   const wins =
     closedTrades.filter(
@@ -755,7 +841,9 @@ function calculatePerformanceStats(
     closedTrades.reduce(
       (sum, trade) =>
         sum +
-        getTradeNetPnl(trade),
+        getTradeNetPnl(
+          trade
+        ),
       0
     );
 
@@ -763,18 +851,23 @@ function calculatePerformanceStats(
     wins.reduce(
       (sum, trade) =>
         sum +
-        getTradeNetPnl(trade),
+        getTradeNetPnl(
+          trade
+        ),
       0
     );
 
-  const grossLoss = Math.abs(
-    losses.reduce(
-      (sum, trade) =>
-        sum +
-        getTradeNetPnl(trade),
-      0
-    )
-  );
+  const grossLoss =
+    Math.abs(
+      losses.reduce(
+        (sum, trade) =>
+          sum +
+          getTradeNetPnl(
+            trade
+          ),
+        0
+      )
+    );
 
   const tradeCount =
     closedTrades.length;
@@ -802,14 +895,16 @@ function calculatePerformanceStats(
 
   const profitFactor =
     grossLoss > 0
-      ? grossProfit / grossLoss
+      ? grossProfit /
+        grossLoss
       : grossProfit > 0
       ? Infinity
       : 0;
 
   const avgWin =
     wins.length > 0
-      ? grossProfit / wins.length
+      ? grossProfit /
+        wins.length
       : 0;
 
   const avgLoss =
@@ -821,33 +916,45 @@ function calculatePerformanceStats(
   const avgR =
     tradeCount > 0
       ? closedTrades.reduce(
-          (sum, trade) =>
+          (
+            sum,
+            trade
+          ) =>
             sum +
-            getTradeR(trade),
+            getTradeR(
+              trade
+            ),
           0
         ) / tradeCount
       : 0;
 
   let equity =
-    Number(initialCapital) || 0;
+    Number(
+      initialCapital
+    ) || 0;
 
   let peak = equity;
 
   let maxDrawdown = 0;
-  let maxDrawdownPercent = 0;
 
-  const equityCurve = [
-    {
-      date: "Départ",
-      equity,
-      pnl: 0,
-    },
-  ];
+  let maxDrawdownPercent =
+    0;
+
+  const equityCurve =
+    [
+      {
+        date: "Départ",
+        equity,
+        pnl: 0,
+      },
+    ];
 
   closedTrades.forEach(
     (trade) => {
       const pnl =
-        getTradeNetPnl(trade);
+        getTradeNetPnl(
+          trade
+        );
 
       equity += pnl;
 
@@ -891,25 +998,33 @@ function calculatePerformanceStats(
   );
 
   let bestStreak = 0;
+
   let worstStreak = 0;
 
   let currentWinStreak = 0;
+
   let currentLossStreak = 0;
 
   closedTrades.forEach(
     (trade) => {
       const pnl =
-        getTradeNetPnl(trade);
+        getTradeNetPnl(
+          trade
+        );
 
       if (
-        isBreakEvenTrade(trade)
+        isBreakEvenTrade(
+          trade
+        )
       ) {
         currentWinStreak = 0;
         currentLossStreak = 0;
       } else if (
-        pnl > RESULT_EPSILON
+        pnl >
+        RESULT_EPSILON
       ) {
         currentWinStreak += 1;
+
         currentLossStreak = 0;
 
         bestStreak =
@@ -922,6 +1037,7 @@ function calculatePerformanceStats(
         -RESULT_EPSILON
       ) {
         currentLossStreak += 1;
+
         currentWinStreak = 0;
 
         worstStreak =
@@ -931,6 +1047,7 @@ function calculatePerformanceStats(
           );
       } else {
         currentWinStreak = 0;
+
         currentLossStreak = 0;
       }
     }
@@ -938,51 +1055,68 @@ function calculatePerformanceStats(
 
   const pnlToday =
     closedTrades
-      .filter((trade) =>
-        isSameDay(
-          getTradeDate(trade),
-          new Date()
-        )
+      .filter(
+        (trade) =>
+          isSameDay(
+            getTradeDate(
+              trade
+            ),
+            new Date()
+          )
       )
       .reduce(
         (sum, trade) =>
           sum +
-          getTradeNetPnl(trade),
+          getTradeNetPnl(
+            trade
+          ),
         0
       );
 
   const pnlWeek =
     closedTrades
-      .filter((trade) =>
-        isSameWeek(
-          getTradeDate(trade),
-          new Date()
-        )
+      .filter(
+        (trade) =>
+          isSameWeek(
+            getTradeDate(
+              trade
+            ),
+            new Date()
+          )
       )
       .reduce(
         (sum, trade) =>
           sum +
-          getTradeNetPnl(trade),
+          getTradeNetPnl(
+            trade
+          ),
         0
       );
 
   const pnlMonth =
     closedTrades
-      .filter((trade) =>
-        isSameMonth(
-          getTradeDate(trade),
-          new Date()
-        )
+      .filter(
+        (trade) =>
+          isSameMonth(
+            getTradeDate(
+              trade
+            ),
+            new Date()
+          )
       )
       .reduce(
         (sum, trade) =>
           sum +
-          getTradeNetPnl(trade),
+          getTradeNetPnl(
+            trade
+          ),
         0
       );
 
   const startCapital =
-    Number(initialCapital) || 0;
+    Number(
+      initialCapital
+    ) || 0;
 
   const pnlPercent =
     startCapital > 0
@@ -993,63 +1127,61 @@ function calculatePerformanceStats(
 
   return {
     trades: tradeCount,
+
     wins: wins.length,
+
     losses: losses.length,
+
     breakevens:
       breakevens.length,
 
-    tpExits: tpExits.length,
-    slExits: slExits.length,
-    beExits: beExits.length,
+    tpExits:
+      tpExits.length,
+
+    slExits:
+      slExits.length,
+
+    beExits:
+      beExits.length,
 
     totalPnl,
+
     grossProfit,
+
     grossLoss,
+
     winRate,
+
     lossRate,
+
     breakevenRate,
+
     profitFactor,
+
     avgWin,
+
     avgLoss,
+
     avgR,
+
     pnlPercent,
+
     maxDrawdown,
+
     maxDrawdownPercent,
+
     bestStreak,
+
     worstStreak,
+
     pnlToday,
+
     pnlWeek,
+
     pnlMonth,
+
     equityCurve,
   };
-}
-
-function getDateTimeInputValue(value) {
-  if (!value) {
-    const now = new Date();
-
-    return new Date(
-      now.getTime() -
-        now.getTimezoneOffset() *
-          60000
-    )
-      .toISOString()
-      .slice(0, 16);
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Date(
-    date.getTime() -
-      date.getTimezoneOffset() *
-        60000
-  )
-    .toISOString()
-    .slice(0, 16);
 }
 
 function PageTitle({
@@ -1064,10 +1196,14 @@ function PageTitle({
       </div>
 
       <div>
-        <h1>{title}</h1>
+        <h1>
+          {title}
+        </h1>
 
         {subtitle && (
-          <p>{subtitle}</p>
+          <p>
+            {subtitle}
+          </p>
         )}
       </div>
     </div>
@@ -1086,17 +1222,23 @@ function MetricCard({
       className={`metric-card ${tone}`}
     >
       <div className="metric-card-top">
-        <span>{title}</span>
+        <span>
+          {title}
+        </span>
 
         <div className="metric-icon">
           <Icon size={18} />
         </div>
       </div>
 
-      <strong>{value}</strong>
+      <strong>
+        {value}
+      </strong>
 
       {subtitle && (
-        <small>{subtitle}</small>
+        <small>
+          {subtitle}
+        </small>
       )}
     </div>
   );
@@ -1110,7 +1252,9 @@ function StatsTable({
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>{title}</h2>
+        <h2>
+          {title}
+        </h2>
       </div>
 
       <div className="table-wrapper">
@@ -1118,7 +1262,9 @@ function StatsTable({
           <thead>
             <tr>
               {columns.map(
-                (column) => (
+                (
+                  column
+                ) => (
                   <th
                     key={
                       column.key
@@ -1134,7 +1280,8 @@ function StatsTable({
           </thead>
 
           <tbody>
-            {rows.length === 0 ? (
+            {rows.length ===
+            0 ? (
               <tr>
                 <td
                   colSpan={
@@ -1147,7 +1294,10 @@ function StatsTable({
               </tr>
             ) : (
               rows.map(
-                (row, index) => (
+                (
+                  row,
+                  index
+                ) => (
                   <tr
                     key={
                       row.id ||
@@ -1196,14 +1346,18 @@ function CapitalPage({
 }) {
   const active =
     capitals.filter(
-      (capital) =>
+      (
+        capital
+      ) =>
         capital.status !==
         "archived"
     );
 
   const archived =
     capitals.filter(
-      (capital) =>
+      (
+        capital
+      ) =>
         capital.status ===
         "archived"
     );
@@ -1222,7 +1376,9 @@ function CapitalPage({
       linkedTrades.reduce(
         (sum, trade) =>
           sum +
-          getTradeNetPnl(trade),
+          getTradeNetPnl(
+            trade
+          ),
         0
       );
 
@@ -1256,7 +1412,9 @@ function CapitalPage({
             <button
               className="icon-button"
               onClick={() =>
-                onEdit(capital)
+                onEdit(
+                  capital
+                )
               }
               title="Modifier"
             >
@@ -1273,7 +1431,10 @@ function CapitalPage({
 
         <div className="capital-grid">
           <div>
-            <span>Capital initial</span>
+            <span>
+              Capital initial
+            </span>
+
             <strong>
               {formatMoney(
                 capital.initialCapital
@@ -1282,7 +1443,10 @@ function CapitalPage({
           </div>
 
           <div>
-            <span>Risque / trade</span>
+            <span>
+              Risque / trade
+            </span>
+
             <strong>
               {formatMoney(
                 getCapitalRisk(
@@ -1293,7 +1457,10 @@ function CapitalPage({
           </div>
 
           <div>
-            <span>Risque %</span>
+            <span>
+              Risque %
+            </span>
+
             <strong>
               {formatPercent(
                 getCapitalRiskPercent(
@@ -1304,22 +1471,32 @@ function CapitalPage({
           </div>
 
           <div>
-            <span>RR de base</span>
+            <span>
+              RR de base
+            </span>
+
             <strong>
-              RR{capital.defaultRR}
+              RR
+              {
+                capital.defaultRR
+              }
             </strong>
           </div>
         </div>
 
         <div className="capital-pnl">
-          <span>P/L</span>
+          <span>
+            P/L
+          </span>
 
           <strong
             className={getResultClass(
               pnl
             )}
           >
-            {formatMoney(pnl)}
+            {formatMoney(
+              pnl
+            )}
           </strong>
         </div>
 
@@ -1337,6 +1514,7 @@ function CapitalPage({
               <RotateCcw
                 size={15}
               />
+
               Restaurer
             </button>
           ) : (
@@ -1351,6 +1529,7 @@ function CapitalPage({
               <Archive
                 size={15}
               />
+
               Archiver
             </button>
           )}
@@ -1358,10 +1537,13 @@ function CapitalPage({
           <button
             className="danger-button"
             onClick={() =>
-              onDelete(capital.id)
+              onDelete(
+                capital.id
+              )
             }
           >
             <Trash2 size={15} />
+
             Supprimer
           </button>
         </div>
@@ -1380,35 +1562,47 @@ function CapitalPage({
 
         <button
           className="primary-button"
-          onClick={onNew}
+          onClick={
+            onNew
+          }
         >
           <Plus size={18} />
+
           Nouveau capital
         </button>
       </div>
 
       <section className="section-block">
         <div className="section-heading">
-          <h2>Capitaux actifs</h2>
+          <h2>
+            Capitaux actifs
+          </h2>
+
           <span>
             {active.length}
           </span>
         </div>
 
         <div className="capital-list">
-          {active.length === 0 ? (
+          {active.length ===
+          0 ? (
             <div className="empty-state">
               Aucun capital actif.
             </div>
           ) : (
-            active.map(renderCapital)
+            active.map(
+              renderCapital
+            )
           )}
         </div>
       </section>
 
       <section className="section-block">
         <div className="section-heading">
-          <h2>Capitaux archivés</h2>
+          <h2>
+            Capitaux archivés
+          </h2>
+
           <span>
             {archived.length}
           </span>
@@ -1442,281 +1636,352 @@ function DashboardPage({
 
   const selectedCapital =
     capitals.find(
-      (capital) =>
+      (
+        capital
+      ) =>
         capital.id ===
         selectedCapitalId
     );
 
-  const activeCapitals = useMemo(
-    () =>
-      capitals.filter(
-        (capital) =>
-          capital.status !==
-          "archived"
-      ),
-    [capitals]
-  );
-
-  const archivedCapitals = useMemo(
-    () =>
-      capitals.filter(
-        (capital) =>
-          capital.status ===
-          "archived"
-      ),
-    [capitals]
-  );
-
-  const analyzedData = useMemo(() => {
-    const allClosedTrades =
-      trades.filter(
-        isClosedTrade
-      );
-
-    if (
-      selectedCapitalId ===
-      "all"
-    ) {
-      const initialCapital =
-        capitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.initialCapital
-            ) || 0),
-          0
-        );
-
-      const currentBalance =
-        activeCapitals.reduce(
-          (sum, capital) =>
-            sum +
-            (Number(
-              capital.currentBalance
-            ) || 0),
-          0
-        );
-
-      return {
-        capital: null,
-        trades: allClosedTrades,
-        initialCapital,
-        currentBalance,
-        name: "Tous les capitaux",
-        balanceLabel:
-          "Capitaux actifs uniquement",
-      };
-    }
-
-    if (!selectedCapital) {
-      return {
-        capital: null,
-        trades: [],
-        initialCapital: 0,
-        currentBalance: 0,
-        name: "Aucun capital",
-        balanceLabel:
-          "Aucun capital sélectionné",
-      };
-    }
-
-    return {
-      capital:
-        selectedCapital,
-      trades:
-        allClosedTrades.filter(
-          (trade) =>
-            trade.capitalId ===
-            selectedCapital.id
+  const activeCapitals =
+    useMemo(
+      () =>
+        capitals.filter(
+          (
+            capital
+          ) =>
+            capital.status !==
+            "archived"
         ),
-      initialCapital:
-        Number(
-          selectedCapital.initialCapital
-        ) || 0,
-      currentBalance:
-        Number(
-          selectedCapital.currentBalance
-        ) || 0,
-      name:
-        selectedCapital.name,
-      balanceLabel:
-        selectedCapital.status ===
-        "archived"
-          ? "Capital archivé"
-          : "Capital actif",
-    };
-  }, [
-    capitals,
-    trades,
-    selectedCapitalId,
-    activeCapitals,
-    selectedCapital,
-  ]);
+      [capitals]
+    );
 
-  const periodTrades = useMemo(
-    () =>
-      analyzedData.trades.filter(
-        (trade) =>
-          isWithinPeriod(
-            getTradeDate(trade),
-            period
-          )
-      ),
-    [analyzedData.trades, period]
-  );
+  const archivedCapitals =
+    useMemo(
+      () =>
+        capitals.filter(
+          (
+            capital
+          ) =>
+            capital.status ===
+            "archived"
+        ),
+      [capitals]
+    );
 
-  const stats = useMemo(
-    () =>
-      calculatePerformanceStats(
-        periodTrades,
-        analyzedData.initialCapital
-      ),
-    [
-      periodTrades,
-      analyzedData.initialCapital,
-    ]
-  );
+  const analyzedData =
+    useMemo(() => {
+      const allClosedTrades =
+        trades.filter(
+          isClosedTrade
+        );
 
-  const lifetimeStats = useMemo(
-    () =>
-      calculatePerformanceStats(
-        analyzedData.trades,
-        analyzedData.initialCapital
-      ),
-    [
-      analyzedData.trades,
-      analyzedData.initialCapital,
-    ]
-  );
-
-  const groupedStats = useMemo(() => {
-    const makeGroup = (
-      field
-    ) => {
-      const map = new Map();
-
-      periodTrades.forEach(
-        (trade) => {
-          const key =
-            trade[field] ||
-            "Non renseigné";
-
-          if (!map.has(key)) {
-            map.set(key, []);
-          }
-
-          map.get(key).push(
-            trade
-          );
-        }
-      );
-
-      return Array.from(
-        map.entries()
-      ).map(
-        ([name, group]) => {
-          const groupStats =
-            calculatePerformanceStats(
-              group,
-              0
-            );
-
-          return {
-            id: name,
-            name,
-            trades:
-              groupStats.trades,
-            wins:
-              groupStats.wins,
-            losses:
-              groupStats.losses,
-            breakevens:
-              groupStats.breakevens,
-            pnl:
-              groupStats.totalPnl,
-            winRate:
-              groupStats.winRate,
-            avgR:
-              groupStats.avgR,
-          };
-        }
-      );
-    };
-
-    return {
-      asset: makeGroup(
-        "asset"
-      ),
-      setup: makeGroup(
-        "setup"
-      ),
-      session: makeGroup(
-        "session"
-      ),
-      timeframe: makeGroup(
-        "timeframe"
-      ),
-      direction: makeGroup(
-        "direction"
-      ),
-    };
-  }, [periodTrades]);
-
-  const rrStats = useMemo(() => {
-    return RR_OPTIONS.map(
-      (rr) => {
-        const group =
-          periodTrades.filter(
-            (trade) =>
-              Number(
-                trade.rr
-              ) === rr
+      if (
+        selectedCapitalId ===
+        "all"
+      ) {
+        const initialCapital =
+          capitals.reduce(
+            (
+              sum,
+              capital
+            ) =>
+              sum +
+              (Number(
+                capital.initialCapital
+              ) || 0),
+            0
           );
 
-        const groupStats =
-          calculatePerformanceStats(
-            group,
+        const currentBalance =
+          activeCapitals.reduce(
+            (
+              sum,
+              capital
+            ) =>
+              sum +
+              (Number(
+                capital.currentBalance
+              ) || 0),
             0
           );
 
         return {
-          id: rr,
-          name: `RR${rr}`,
+          capital: null,
           trades:
-            groupStats.trades,
-          wins:
-            groupStats.wins,
-          losses:
-            groupStats.losses,
-          beExits:
-            groupStats.beExits,
-          pnl:
-            groupStats.totalPnl,
-          winRate:
-            groupStats.winRate,
-          avgR:
-            groupStats.avgR,
+            allClosedTrades,
+          initialCapital,
+          currentBalance,
+          name:
+            "Tous les capitaux",
+          balanceLabel:
+            "Capitaux actifs uniquement",
         };
       }
-    );
-  }, [periodTrades]);
 
-  const recentTrades = useMemo(
-    () =>
-      periodTrades
-        .slice()
-        .sort(
-          (a, b) =>
-            getTradeTimestamp(b) -
-            getTradeTimestamp(a)
-        )
-        .slice(0, 8),
-    [periodTrades]
-  );
+      if (
+        !selectedCapital
+      ) {
+        return {
+          capital: null,
+          trades: [],
+          initialCapital: 0,
+          currentBalance: 0,
+          name:
+            "Aucun capital",
+          balanceLabel:
+            "Aucun capital sélectionné",
+        };
+      }
+
+      return {
+        capital:
+          selectedCapital,
+        trades:
+          allClosedTrades.filter(
+            (trade) =>
+              trade.capitalId ===
+              selectedCapital.id
+          ),
+        initialCapital:
+          Number(
+            selectedCapital.initialCapital
+          ) || 0,
+        currentBalance:
+          Number(
+            selectedCapital.currentBalance
+          ) || 0,
+        name:
+          selectedCapital.name,
+        balanceLabel:
+          selectedCapital.status ===
+          "archived"
+            ? "Capital archivé"
+            : "Capital actif",
+      };
+    }, [
+      capitals,
+      trades,
+      selectedCapitalId,
+      activeCapitals,
+      selectedCapital,
+    ]);
+
+  const periodTrades =
+    useMemo(
+      () =>
+        analyzedData.trades.filter(
+          (trade) =>
+            isWithinPeriod(
+              getTradeDate(
+                trade
+              ),
+              period
+            )
+        ),
+      [
+        analyzedData.trades,
+        period,
+      ]
+    );
+
+  const stats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          periodTrades,
+          analyzedData.initialCapital
+        ),
+      [
+        periodTrades,
+        analyzedData.initialCapital,
+      ]
+    );
+
+  const lifetimeStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          analyzedData.trades,
+          analyzedData.initialCapital
+        ),
+      [
+        analyzedData.trades,
+        analyzedData.initialCapital,
+      ]
+    );
+
+  const groupedStats =
+    useMemo(() => {
+      const makeGroup =
+        (
+          field
+        ) => {
+          const map =
+            new Map();
+
+          periodTrades.forEach(
+            (trade) => {
+              const key =
+                trade[field] ||
+                "Non renseigné";
+
+              if (
+                !map.has(
+                  key
+                )
+              ) {
+                map.set(
+                  key,
+                  []
+                );
+              }
+
+              map
+                .get(key)
+                .push(
+                  trade
+                );
+            }
+          );
+
+          return Array.from(
+            map.entries()
+          ).map(
+            ([
+              name,
+              group,
+            ]) => {
+              const groupStats =
+                calculatePerformanceStats(
+                  group,
+                  0
+                );
+
+              return {
+                id: name,
+                name,
+                trades:
+                  groupStats.trades,
+                wins:
+                  groupStats.wins,
+                losses:
+                  groupStats.losses,
+                breakevens:
+                  groupStats.breakevens,
+                pnl:
+                  groupStats.totalPnl,
+                winRate:
+                  groupStats.winRate,
+                avgR:
+                  groupStats.avgR,
+              };
+            }
+          );
+        };
+
+      return {
+        asset:
+          makeGroup(
+            "asset"
+          ),
+
+        setup:
+          makeGroup(
+            "setup"
+          ),
+
+        session:
+          makeGroup(
+            "session"
+          ),
+
+        timeframe:
+          makeGroup(
+            "timeframe"
+          ),
+
+        direction:
+          makeGroup(
+            "direction"
+          ),
+      };
+    }, [periodTrades]);
+
+  const rrStats =
+    useMemo(
+      () =>
+        RR_OPTIONS.map(
+          (
+            rr
+          ) => {
+            const group =
+              periodTrades.filter(
+                (
+                  trade
+                ) =>
+                  Number(
+                    trade.rr
+                  ) ===
+                  rr
+              );
+
+            const groupStats =
+              calculatePerformanceStats(
+                group,
+                0
+              );
+
+            return {
+              id: rr,
+              name: `RR${rr}`,
+              trades:
+                groupStats.trades,
+              wins:
+                groupStats.wins,
+              losses:
+                groupStats.losses,
+              beExits:
+                groupStats.beExits,
+              pnl:
+                groupStats.totalPnl,
+              winRate:
+                groupStats.winRate,
+              avgR:
+                groupStats.avgR,
+            };
+          }
+        ),
+      [periodTrades]
+    );
+
+  const recentTrades =
+    useMemo(
+      () =>
+        periodTrades
+          .slice()
+          .sort(
+            (a, b) =>
+              getTradeTimestamp(
+                b
+              ) -
+              getTradeTimestamp(
+                a
+              )
+          )
+          .slice(
+            0,
+            8
+          ),
+      [periodTrades]
+    );
 
   const capitalInitialTotal =
     capitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.initialCapital
@@ -1726,7 +1991,10 @@ function DashboardPage({
 
   const capitalBalanceTotal =
     capitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.currentBalance
@@ -1736,7 +2004,10 @@ function DashboardPage({
 
   const activeCapitalInitialTotal =
     activeCapitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.initialCapital
@@ -1746,7 +2017,10 @@ function DashboardPage({
 
   const activeCapitalBalanceTotal =
     activeCapitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.currentBalance
@@ -1756,7 +2030,10 @@ function DashboardPage({
 
   const archivedCapitalInitialTotal =
     archivedCapitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.initialCapital
@@ -1766,7 +2043,10 @@ function DashboardPage({
 
   const archivedCapitalBalanceTotal =
     archivedCapitals.reduce(
-      (sum, capital) =>
+      (
+        sum,
+        capital
+      ) =>
         sum +
         (Number(
           capital.currentBalance
@@ -1774,59 +2054,81 @@ function DashboardPage({
       0
     );
 
-  const globalStats = useMemo(
-    () =>
-      calculatePerformanceStats(
+  const globalStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          trades,
+          capitalInitialTotal
+        ),
+      [
         trades,
-        capitalInitialTotal
-      ),
-    [trades, capitalInitialTotal]
-  );
+        capitalInitialTotal,
+      ]
+    );
 
   const globalActiveTrades =
     useMemo(
       () =>
         trades.filter(
-          (trade) => {
+          (
+            trade
+          ) => {
             const capital =
               capitals.find(
-                (item) =>
+                (
+                  item
+                ) =>
                   item.id ===
                   trade.capitalId
               );
 
             return (
-              isClosedTrade(trade) &&
+              isClosedTrade(
+                trade
+              ) &&
               capital &&
               capital.status !==
                 "archived"
             );
           }
         ),
-      [trades, capitals]
+      [
+        trades,
+        capitals,
+      ]
     );
 
   const globalArchivedTrades =
     useMemo(
       () =>
         trades.filter(
-          (trade) => {
+          (
+            trade
+          ) => {
             const capital =
               capitals.find(
-                (item) =>
+                (
+                  item
+                ) =>
                   item.id ===
                   trade.capitalId
               );
 
             return (
-              isClosedTrade(trade) &&
+              isClosedTrade(
+                trade
+              ) &&
               capital &&
               capital.status ===
                 "archived"
             );
           }
         ),
-      [trades, capitals]
+      [
+        trades,
+        capitals,
+      ]
     );
 
   const activeGlobalStats =
@@ -1870,7 +2172,10 @@ function DashboardPage({
           selectedCapital
         )
       : activeCapitals.reduce(
-          (sum, capital) =>
+          (
+            sum,
+            capital
+          ) =>
             sum +
             getCapitalRisk(
               capital
@@ -1909,9 +2214,12 @@ function DashboardPage({
               value={
                 selectedCapitalId
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setSelectedCapitalId(
-                  event.target.value
+                  event.target
+                    .value
                 )
               }
             >
@@ -1920,7 +2228,9 @@ function DashboardPage({
               </option>
 
               {capitals.map(
-                (capital) => (
+                (
+                  capital
+                ) => (
                   <option
                     key={
                       capital.id
@@ -1929,7 +2239,10 @@ function DashboardPage({
                       capital.id
                     }
                   >
-                    {capital.name}
+                    {
+                      capital.name
+                    }
+
                     {capital.status ===
                     "archived"
                       ? " — Archivé"
@@ -1950,9 +2263,12 @@ function DashboardPage({
         <div className="select-wrapper">
           <select
             value={period}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setPeriod(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -1986,7 +2302,9 @@ function DashboardPage({
           </span>
 
           <strong>
-            {analyzedData.name}
+            {
+              analyzedData.name
+            }
           </strong>
         </div>
 
@@ -1996,7 +2314,9 @@ function DashboardPage({
           </span>
 
           <strong>
-            {periodLabel}
+            {
+              periodLabel
+            }
           </strong>
         </div>
 
@@ -2115,18 +2435,23 @@ function DashboardPage({
             stats.breakevenRate
           )}
           subtitle={`${stats.breakevens} résultat${
-            stats.breakevens > 1
+            stats.breakevens >
+            1
               ? "s"
               : ""
           } à 0`}
-          icon={CircleDollarSign}
+          icon={
+            CircleDollarSign
+          }
         />
 
         <MetricCard
           title="Sorties BE"
           value={stats.beExits}
           subtitle="Trades fermés en BE"
-          icon={CircleDollarSign}
+          icon={
+            CircleDollarSign
+          }
         />
       </div>
 
@@ -2172,7 +2497,9 @@ function DashboardPage({
           subtitle={`≈ ${formatPercent(
             selectedRiskPercent
           )} du capital`}
-          icon={CircleDollarSign}
+          icon={
+            CircleDollarSign
+          }
         />
 
         <MetricCard
@@ -2197,26 +2524,24 @@ function DashboardPage({
 
         <MetricCard
           title="Meilleure série"
-          value={
-            `${stats.bestStreak} trade${
-              stats.bestStreak > 1
-                ? "s"
-                : ""
-            }`
-          }
+          value={`${stats.bestStreak} trade${
+            stats.bestStreak >
+            1
+              ? "s"
+              : ""
+          }`}
           subtitle="Gains consécutifs"
           icon={Check}
         />
 
         <MetricCard
           title="Pire série"
-          value={
-            `${stats.worstStreak} trade${
-              stats.worstStreak > 1
-                ? "s"
-                : ""
-            }`
-          }
+          value={`${stats.worstStreak} trade${
+            stats.worstStreak >
+            1
+              ? "s"
+              : ""
+          }`}
           subtitle="Pertes consécutives"
           icon={BarChart3}
           tone="negative"
@@ -2231,8 +2556,9 @@ function DashboardPage({
             </h2>
 
             <p>
-              Vue consolidée de tous les
-              capitaux, actifs et archivés.
+              Vue consolidée de tous
+              les capitaux, actifs et
+              archivés.
             </p>
           </div>
         </div>
@@ -2300,7 +2626,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.trades}
+              {
+                globalStats.trades
+              }
             </strong>
           </div>
 
@@ -2322,7 +2650,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.losses}
+              {
+                globalStats.losses
+              }
             </strong>
           </div>
 
@@ -2332,7 +2662,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.breakevens}
+              {
+                globalStats.breakevens
+              }
             </strong>
           </div>
 
@@ -2342,7 +2674,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.beExits}
+              {
+                globalStats.beExits
+              }
             </strong>
           </div>
 
@@ -2381,9 +2715,7 @@ function DashboardPage({
               Gain moyen
             </span>
 
-            <strong
-              className="positive"
-            >
+            <strong className="positive">
               {formatMoney(
                 globalStats.avgWin
               )}
@@ -2395,9 +2727,7 @@ function DashboardPage({
               Perte moyenne
             </span>
 
-            <strong
-              className="negative"
-            >
+            <strong className="negative">
               {formatMoney(
                 globalStats.avgLoss
               )}
@@ -2409,9 +2739,7 @@ function DashboardPage({
               Drawdown max.
             </span>
 
-            <strong
-              className="negative"
-            >
+            <strong className="negative">
               {formatMoney(
                 globalStats.maxDrawdown
               )}
@@ -2424,7 +2752,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.bestStreak}
+              {
+                globalStats.bestStreak
+              }
             </strong>
           </div>
 
@@ -2434,7 +2764,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {globalStats.worstStreak}
+              {
+                globalStats.worstStreak
+              }
             </strong>
           </div>
         </div>
@@ -2448,9 +2780,10 @@ function DashboardPage({
             </h2>
 
             <p>
-              Séparation entre les capitaux
-              actuellement actifs et les
-              capitaux archivés.
+              Séparation entre les
+              capitaux actuellement
+              actifs et les capitaux
+              archivés.
             </p>
           </div>
         </div>
@@ -2462,7 +2795,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {activeCapitals.length}
+              {
+                activeCapitals.length
+              }
             </strong>
           </div>
 
@@ -2500,7 +2835,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {activeGlobalStats.trades}
+              {
+                activeGlobalStats.trades
+              }
             </strong>
           </div>
 
@@ -2510,7 +2847,9 @@ function DashboardPage({
             </span>
 
             <strong>
-              {archivedCapitals.length}
+              {
+                archivedCapitals.length
+              }
             </strong>
           </div>
 
@@ -2644,16 +2983,45 @@ function DashboardPage({
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Actif</th>
-                <th>Direction</th>
-                <th>Setup</th>
-                <th>Session</th>
-                <th>RR</th>
-                <th>Fermeture</th>
-                <th>Résultat</th>
-                <th>P/L</th>
-                <th>R</th>
+                <th>
+                  Date
+                </th>
+
+                <th>
+                  Actif
+                </th>
+
+                <th>
+                  Direction
+                </th>
+
+                <th>
+                  Setup
+                </th>
+
+                <th>
+                  Session
+                </th>
+
+                <th>
+                  RR
+                </th>
+
+                <th>
+                  Fermeture
+                </th>
+
+                <th>
+                  Résultat
+                </th>
+
+                <th>
+                  P/L
+                </th>
+
+                <th>
+                  R
+                </th>
               </tr>
             </thead>
 
@@ -2671,7 +3039,9 @@ function DashboardPage({
                 </tr>
               ) : (
                 recentTrades.map(
-                  (trade) => {
+                  (
+                    trade
+                  ) => {
                     const pnl =
                       getTradeNetPnl(
                         trade
@@ -2737,7 +3107,9 @@ function DashboardPage({
                             exitType
                           )}
                         >
-                          {exitType}
+                          {
+                            exitType
+                          }
                         </td>
 
                         <td
@@ -2813,7 +3185,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -2828,7 +3202,9 @@ function DashboardPage({
             {
               key: "winRate",
               label: "Win %",
-              render: (row) =>
+              render: (
+                row
+              ) =>
                 formatPercent(
                   row.winRate
                 ),
@@ -2861,7 +3237,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -2876,7 +3254,9 @@ function DashboardPage({
             {
               key: "avgR",
               label: "R moyen",
-              render: (row) =>
+              render: (
+                row
+              ) =>
                 `${formatNumber(
                   row.avgR,
                   2
@@ -2904,7 +3284,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -2919,7 +3301,9 @@ function DashboardPage({
             {
               key: "winRate",
               label: "Win %",
-              render: (row) =>
+              render: (
+                row
+              ) =>
                 formatPercent(
                   row.winRate
                 ),
@@ -2944,7 +3328,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -2959,7 +3345,9 @@ function DashboardPage({
             {
               key: "avgR",
               label: "R moyen",
-              render: (row) =>
+              render: (
+                row
+              ) =>
                 `${formatNumber(
                   row.avgR,
                   2
@@ -2995,7 +3383,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -3013,10 +3403,14 @@ function DashboardPage({
         <StatsTable
           title="Par sortie"
           rows={EXIT_TYPES.map(
-            (exitType) => {
+            (
+              exitType
+            ) => {
               const group =
                 periodTrades.filter(
-                  (trade) =>
+                  (
+                    trade
+                  ) =>
                     getTradeExitType(
                       trade
                     ) ===
@@ -3051,13 +3445,17 @@ function DashboardPage({
             {
               key: "name",
               label: "Fermeture",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getExitClass(
                     row.name
                   )}
                 >
-                  {row.name}
+                  {
+                    row.name
+                  }
                 </span>
               ),
             },
@@ -3080,7 +3478,9 @@ function DashboardPage({
             {
               key: "pnl",
               label: "P/L",
-              render: (row) => (
+              render: (
+                row
+              ) => (
                 <span
                   className={getResultClass(
                     row.pnl
@@ -3095,7 +3495,9 @@ function DashboardPage({
             {
               key: "avgR",
               label: "R moyen",
-              render: (row) =>
+              render: (
+                row
+              ) =>
                 `${formatNumber(
                   row.avgR,
                   2
@@ -3107,7 +3509,9 @@ function DashboardPage({
 
       <StatsTable
         title="Analyse par RR"
-        rows={rrStats}
+        rows={
+          rrStats
+        }
         columns={[
           {
             key: "name",
@@ -3132,7 +3536,9 @@ function DashboardPage({
           {
             key: "winRate",
             label: "Win %",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               formatPercent(
                 row.winRate
               ),
@@ -3140,7 +3546,9 @@ function DashboardPage({
           {
             key: "pnl",
             label: "P/L",
-            render: (row) => (
+            render: (
+              row
+            ) => (
               <span
                 className={getResultClass(
                   row.pnl
@@ -3155,7 +3563,9 @@ function DashboardPage({
           {
             key: "avgR",
             label: "R moyen",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               `${formatNumber(
                 row.avgR,
                 2
@@ -3173,11 +3583,14 @@ function JournalPage({
   filter,
   setFilter,
   onNew,
+  onView,
   onEdit,
   onDelete,
 }) {
-  const [assetFilter, setAssetFilter] =
-    useState("all");
+  const [
+    assetFilter,
+    setAssetFilter,
+  ] = useState("all");
 
   const [
     directionFilter,
@@ -3209,26 +3622,36 @@ function JournalPage({
     setTimeframeFilter,
   ] = useState("all");
 
-  const allClosedTrades = useMemo(
-    () =>
-      trades
-        .filter(isClosedTrade)
-        .slice()
-        .sort(
-          (a, b) =>
-            getTradeTimestamp(b) -
-            getTradeTimestamp(a)
-        ),
-    [trades]
-  );
+  const allClosedTrades =
+    useMemo(
+      () =>
+        trades
+          .filter(
+            isClosedTrade
+          )
+          .slice()
+          .sort(
+            (a, b) =>
+              getTradeTimestamp(
+                b
+              ) -
+              getTradeTimestamp(
+                a
+              )
+          ),
+      [trades]
+    );
 
   const filteredTrades =
     useMemo(
       () =>
         allClosedTrades.filter(
-          (trade) => {
+          (
+            trade
+          ) => {
             if (
-              filter !== "all" &&
+              filter !==
+                "all" &&
               trade.capitalId !==
                 filter
             ) {
@@ -3258,7 +3681,8 @@ function JournalPage({
                 "all" &&
               getTradeOutcome(
                 trade
-              ) !== resultFilter
+              ) !==
+                resultFilter
             ) {
               return false;
             }
@@ -3268,7 +3692,8 @@ function JournalPage({
                 "all" &&
               getTradeExitType(
                 trade
-              ) !== exitTypeFilter
+              ) !==
+                exitTypeFilter
             ) {
               return false;
             }
@@ -3328,22 +3753,43 @@ function JournalPage({
 
   function resetFilters() {
     setFilter("all");
+
     setAssetFilter("all");
-    setDirectionFilter("all");
+
+    setDirectionFilter(
+      "all"
+    );
+
     setResultFilter("all");
-    setExitTypeFilter("all");
-    setSessionFilter("all");
-    setSetupFilter("all");
-    setTimeframeFilter("all");
+
+    setExitTypeFilter(
+      "all"
+    );
+
+    setSessionFilter(
+      "all"
+    );
+
+    setSetupFilter(
+      "all"
+    );
+
+    setTimeframeFilter(
+      "all"
+    );
   }
 
   const capitalName = (
     id
   ) =>
     capitals.find(
-      (capital) =>
-        capital.id === id
-    )?.name || "Inconnu";
+      (
+        capital
+      ) =>
+        capital.id ===
+        id
+    )?.name ||
+    "Inconnu";
 
   return (
     <div className="page">
@@ -3356,9 +3802,12 @@ function JournalPage({
 
         <button
           className="primary-button"
-          onClick={onNew}
+          onClick={
+            onNew
+          }
         >
           <Plus size={18} />
+
           Nouveau trade
         </button>
       </div>
@@ -3367,9 +3816,12 @@ function JournalPage({
         <div className="select-wrapper">
           <select
             value={filter}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3378,7 +3830,9 @@ function JournalPage({
             </option>
 
             {capitals.map(
-              (capital) => (
+              (
+                capital
+              ) => (
                 <option
                   key={
                     capital.id
@@ -3387,7 +3841,10 @@ function JournalPage({
                     capital.id
                   }
                 >
-                  {capital.name}
+                  {
+                    capital.name
+                  }
+
                   {capital.status ===
                   "archived"
                     ? " — Archivé"
@@ -3407,9 +3864,12 @@ function JournalPage({
             value={
               assetFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setAssetFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3418,7 +3878,9 @@ function JournalPage({
             </option>
 
             {ASSETS.map(
-              (asset) => (
+              (
+                asset
+              ) => (
                 <option
                   key={asset}
                   value={asset}
@@ -3439,9 +3901,12 @@ function JournalPage({
             value={
               directionFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setDirectionFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3468,9 +3933,12 @@ function JournalPage({
             value={
               resultFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setResultFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3501,9 +3969,12 @@ function JournalPage({
             value={
               exitTypeFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setExitTypeFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3534,9 +4005,12 @@ function JournalPage({
             value={
               sessionFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setSessionFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3545,10 +4019,16 @@ function JournalPage({
             </option>
 
             {SESSIONS.map(
-              (session) => (
+              (
+                session
+              ) => (
                 <option
-                  key={session}
-                  value={session}
+                  key={
+                    session
+                  }
+                  value={
+                    session
+                  }
                 >
                   {session}
                 </option>
@@ -3566,9 +4046,12 @@ function JournalPage({
             value={
               setupFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setSetupFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3577,7 +4060,9 @@ function JournalPage({
             </option>
 
             {SETUPS.map(
-              (setup) => (
+              (
+                setup
+              ) => (
                 <option
                   key={setup}
                   value={setup}
@@ -3598,9 +4083,12 @@ function JournalPage({
             value={
               timeframeFilter
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               setTimeframeFilter(
-                event.target.value
+                event.target
+                  .value
               )
             }
           >
@@ -3609,12 +4097,20 @@ function JournalPage({
             </option>
 
             {TIMEFRAMES.map(
-              (timeframe) => (
+              (
+                timeframe
+              ) => (
                 <option
-                  key={timeframe}
-                  value={timeframe}
+                  key={
+                    timeframe
+                  }
+                  value={
+                    timeframe
+                  }
                 >
-                  {timeframe}
+                  {
+                    timeframe
+                  }
                 </option>
               )
             )}
@@ -3627,11 +4123,14 @@ function JournalPage({
 
         <button
           className="secondary-button"
-          onClick={resetFilters}
+          onClick={
+            resetFilters
+          }
         >
           <RotateCcw
             size={15}
           />
+
           Réinitialiser
         </button>
       </div>
@@ -3643,7 +4142,9 @@ function JournalPage({
           </span>
 
           <strong>
-            {filteredStats.trades}
+            {
+              filteredStats.trades
+            }
           </strong>
         </div>
 
@@ -3695,7 +4196,9 @@ function JournalPage({
           </span>
 
           <strong>
-            {filteredStats.beExits}
+            {
+              filteredStats.beExits
+            }
           </strong>
         </div>
       </div>
@@ -3705,19 +4208,57 @@ function JournalPage({
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Capital</th>
-                <th>Actif</th>
-                <th>Direction</th>
-                <th>Entrée</th>
-                <th>SL</th>
-                <th>TP</th>
-                <th>RR</th>
-                <th>Fermeture</th>
-                <th>Résultat</th>
-                <th>P/L</th>
-                <th>R</th>
-                <th>Actions</th>
+                <th>
+                  Date
+                </th>
+
+                <th>
+                  Capital
+                </th>
+
+                <th>
+                  Actif
+                </th>
+
+                <th>
+                  Direction
+                </th>
+
+                <th>
+                  Entrée
+                </th>
+
+                <th>
+                  SL
+                </th>
+
+                <th>
+                  TP
+                </th>
+
+                <th>
+                  RR
+                </th>
+
+                <th>
+                  Fermeture
+                </th>
+
+                <th>
+                  Résultat
+                </th>
+
+                <th>
+                  P/L
+                </th>
+
+                <th>
+                  R
+                </th>
+
+                <th>
+                  Actions
+                </th>
               </tr>
             </thead>
 
@@ -3736,7 +4277,9 @@ function JournalPage({
                 </tr>
               ) : (
                 filteredTrades.map(
-                  (trade) => {
+                  (
+                    trade
+                  ) => {
                     const pnl =
                       getTradeNetPnl(
                         trade
@@ -3773,15 +4316,21 @@ function JournalPage({
                         </td>
 
                         <td>
-                          {trade.asset}
+                          {
+                            trade.asset
+                          }
                         </td>
 
                         <td>
-                          {trade.direction}
+                          {
+                            trade.direction
+                          }
                         </td>
 
                         <td>
-                          {trade.entry}
+                          {
+                            trade.entry
+                          }
                         </td>
 
                         <td>
@@ -3791,12 +4340,16 @@ function JournalPage({
                         </td>
 
                         <td>
-                          {trade.tp}
+                          {
+                            trade.tp
+                          }
                         </td>
 
                         <td>
                           RR
-                          {trade.rr}
+                          {
+                            trade.rr
+                          }
                         </td>
 
                         <td
@@ -3804,7 +4357,9 @@ function JournalPage({
                             exitType
                           )}
                         >
-                          {exitType}
+                          {
+                            exitType
+                          }
                         </td>
 
                         <td
@@ -3850,6 +4405,20 @@ function JournalPage({
                             <button
                               className="icon-button"
                               onClick={() =>
+                                onView(
+                                  trade
+                                )
+                              }
+                              title="Voir le détail"
+                            >
+                              <Eye
+                                size={15}
+                              />
+                            </button>
+
+                            <button
+                              className="icon-button"
+                              onClick={() =>
                                 onEdit(
                                   trade
                                 )
@@ -3885,202 +4454,648 @@ function JournalPage({
           </table>
         </div>
       </section>
+    </div>
+  );
+}
 
-      <div className="two-column">
-        <StatsTable
-          title="Par actif"
-          rows={(() => {
-            const map = new Map();
+function TradeDetailModal({
+  open,
+  trade,
+  capital,
+  onClose,
+  onEdit,
+}) {
+  if (!open || !trade) {
+    return null;
+  }
 
-            filteredTrades.forEach(
-              (trade) => {
-                const key =
-                  trade.asset ||
-                  "Non renseigné";
+  const pnl =
+    getTradeNetPnl(
+      trade
+    );
 
-                if (
-                  !map.has(key)
-                ) {
-                  map.set(
-                    key,
-                    []
-                  );
-                }
+  const exitType =
+    getTradeExitType(
+      trade
+    );
 
-                map
-                  .get(key)
-                  .push(
-                    trade
-                  );
-              }
-            );
+  const outcome =
+    getTradeOutcome(
+      trade
+    );
 
-            return Array.from(
-              map.entries()
-            ).map(
-              ([
-                name,
-                group,
-              ]) => {
-                const groupStats =
-                  calculatePerformanceStats(
-                    group,
-                    0
-                  );
+  const pipValue =
+    Number(
+      trade.pipValue
+    ) ||
+    getPipValuePerLot(
+      trade.asset,
+      trade.entry
+    );
 
-                return {
-                  id: name,
-                  name,
-                  trades:
-                    groupStats.trades,
-                  wins:
-                    groupStats.wins,
-                  losses:
-                    groupStats.losses,
-                  pnl:
-                    groupStats.totalPnl,
-                  winRate:
-                    groupStats.winRate,
-                };
-              }
-            );
-          })()}
-          columns={[
-            {
-              key: "name",
-              label: "Actif",
-            },
-            {
-              key: "trades",
-              label: "Trades",
-            },
-            {
-              key: "wins",
-              label: "W",
-            },
-            {
-              key: "losses",
-              label: "L",
-            },
-            {
-              key: "pnl",
-              label: "P/L",
-              render: (row) => (
-                <span
-                  className={getResultClass(
-                    row.pnl
-                  )}
-                >
-                  {formatMoney(
-                    row.pnl
-                  )}
-                </span>
-              ),
-            },
-            {
-              key: "winRate",
-              label: "Win %",
-              render: (row) =>
-                formatPercent(
-                  row.winRate
-                ),
-            },
-          ]}
-        />
+  const priceDecimals =
+    trade.asset ===
+    "USDJPY"
+      ? 3
+      : 2;
 
-        <StatsTable
-          title="Par fermeture"
-          rows={EXIT_TYPES.map(
-            (exitType) => {
-              const group =
-                filteredTrades.filter(
-                  (trade) =>
-                    getTradeExitType(
-                      trade
-                    ) ===
-                    exitType
-                );
+  return (
+    <div className="modal-backdrop">
+      <div className="modal large">
+        <div className="modal-header">
+          <div>
+            <h2>
+              Détail du trade
+            </h2>
 
-              const groupStats =
-                calculatePerformanceStats(
-                  group,
-                  0
-                );
+            <p>
+              {formatDate(
+                trade.dateTime
+              )}
+            </p>
+          </div>
 
-              return {
-                id: exitType,
-                name: exitType,
-                trades:
-                  groupStats.trades,
-                wins:
-                  groupStats.wins,
-                losses:
-                  groupStats.losses,
-                beFinancial:
-                  groupStats.breakevens,
-                pnl:
-                  groupStats.totalPnl,
-                avgR:
-                  groupStats.avgR,
-              };
+          <button
+            className="icon-button"
+            onClick={
+              onClose
             }
-          )}
-          columns={[
-            {
-              key: "name",
-              label: "Fermeture",
-              render: (row) => (
-                <span
-                  className={getExitClass(
-                    row.name
-                  )}
-                >
-                  {row.name}
-                </span>
-              ),
-            },
-            {
-              key: "trades",
-              label: "Trades",
-            },
-            {
-              key: "wins",
-              label: "Gains",
-            },
-            {
-              key: "losses",
-              label: "Pertes",
-            },
-            {
-              key: "beFinancial",
-              label: "BE financier",
-            },
-            {
-              key: "pnl",
-              label: "P/L",
-              render: (row) => (
-                <span
-                  className={getResultClass(
-                    row.pnl
-                  )}
-                >
-                  {formatMoney(
-                    row.pnl
-                  )}
-                </span>
-              ),
-            },
-            {
-              key: "avgR",
-              label: "R moyen",
-              render: (row) =>
-                `${formatNumber(
-                  row.avgR,
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="analysis-banner">
+          <div>
+            <span>
+              Actif
+            </span>
+
+            <strong>
+              {
+                trade.asset
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Direction
+            </span>
+
+            <strong>
+              {
+                trade.direction
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Fermeture
+            </span>
+
+            <strong
+              className={getExitClass(
+                exitType
+              )}
+            >
+              {
+                exitType
+              }
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Résultat
+            </span>
+
+            <strong
+              className={getOutcomeClass(
+                outcome
+              )}
+            >
+              {
+                getTradeResultLabel(
+                  trade
+                )
+              }
+            </strong>
+          </div>
+        </div>
+
+        <div className="trade-preview">
+          <div>
+            <span>
+              P/L net
+            </span>
+
+            <strong
+              className={getResultClass(
+                pnl
+              )}
+            >
+              {formatMoney(
+                pnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              R réalisé
+            </span>
+
+            <strong
+              className={getResultClass(
+                getTradeR(
+                  trade
+                )
+              )}
+            >
+              {formatNumber(
+                getTradeR(
+                  trade
+                ),
+                2
+              )}
+              R
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Risque
+            </span>
+
+            <strong>
+              {formatMoney(
+                trade.riskMoney
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Risque %
+            </span>
+
+            <strong>
+              {formatPercent(
+                trade.riskPercent
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Lot
+            </span>
+
+            <strong>
+              {formatNumber(
+                trade.lot,
+                2
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Stop
+            </span>
+
+            <strong>
+              {formatNumber(
+                trade.stopPips,
+                1
+              )}{" "}
+              pips
+            </strong>
+          </div>
+        </div>
+
+        <section className="panel">
+          <div className="panel-header">
+            <h2>
+              Exécution
+            </h2>
+          </div>
+
+          <div className="global-grid">
+            <div>
+              <span>
+                Capital
+              </span>
+
+              <strong>
+                {
+                  capital?.name ||
+                  "Inconnu"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Session
+              </span>
+
+              <strong>
+                {
+                  trade.session ||
+                  "-"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Timeframe
+              </span>
+
+              <strong>
+                {
+                  trade.timeframe ||
+                  "-"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Setup
+              </span>
+
+              <strong>
+                {
+                  trade.setup ||
+                  "-"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Entrée
+              </span>
+
+              <strong>
+                {Number.isFinite(
+                  Number(
+                    trade.entry
+                  )
+                )
+                  ? formatNumber(
+                      trade.entry,
+                      priceDecimals
+                    )
+                  : "-"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Stop Loss
+              </span>
+
+              <strong>
+                {Number.isFinite(
+                  Number(
+                    trade.stopLoss
+                  )
+                )
+                  ? formatNumber(
+                      trade.stopLoss,
+                      priceDecimals
+                    )
+                  : "-"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Take Profit
+              </span>
+
+              <strong>
+                {Number.isFinite(
+                  Number(
+                    trade.tp
+                  )
+                )
+                  ? formatNumber(
+                      trade.tp,
+                      priceDecimals
+                    )
+                  : "-"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Prix de sortie
+              </span>
+
+              <strong>
+                {Number.isFinite(
+                  Number(
+                    trade.exitPrice
+                  )
+                )
+                  ? formatNumber(
+                      trade.exitPrice,
+                      priceDecimals
+                    )
+                  : "-"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                RR planifié
+              </span>
+
+              <strong>
+                RR
+                {formatNumber(
+                  trade.rr,
+                  0
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Valeur pip / lot
+              </span>
+
+              <strong>
+                $
+                {formatNumber(
+                  pipValue,
+                  4
+                )}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <h2>
+              Résultat financier
+            </h2>
+          </div>
+
+          <div className="global-grid">
+            <div>
+              <span>
+                Pips réalisés
+              </span>
+
+              <strong
+                className={getResultClass(
+                  trade.resultPips
+                )}
+              >
+                {formatNumber(
+                  trade.resultPips,
+                  1
+                )}{" "}
+                pips
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                P/L brut
+              </span>
+
+              <strong
+                className={getResultClass(
+                  trade.grossPnl
+                )}
+              >
+                {formatMoney(
+                  trade.grossPnl
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Frais
+              </span>
+
+              <strong>
+                {formatMoney(
+                  trade.fees
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Swap
+              </span>
+
+              <strong>
+                {formatMoney(
+                  trade.swap
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                P/L net
+              </span>
+
+              <strong
+                className={getResultClass(
+                  pnl
+                )}
+              >
+                {formatMoney(
+                  pnl
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Résultat
+              </span>
+
+              <strong
+                className={getOutcomeClass(
+                  outcome
+                )}
+              >
+                {
+                  getTradeResultLabel(
+                    trade
+                  )
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                R réalisé
+              </span>
+
+              <strong
+                className={getResultClass(
+                  getTradeR(
+                    trade
+                  )
+                )}
+              >
+                {formatNumber(
+                  getTradeR(
+                    trade
+                  ),
                   2
-                )}R`,
-            },
-          ]}
-        />
+                )}
+                R
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Fermeture
+              </span>
+
+              <strong
+                className={getExitClass(
+                  exitType
+                )}
+              >
+                {exitType}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <h2>
+              Discipline & contexte
+            </h2>
+          </div>
+
+          <div className="global-grid">
+            <div>
+              <span>
+                Adhérence au plan
+              </span>
+
+              <strong>
+                {
+                  trade.planAdherence ||
+                  "-"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Émotion
+              </span>
+
+              <strong>
+                {
+                  trade.emotion ||
+                  "-"
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Erreurs
+              </span>
+
+              <strong>
+                {
+                  trade.mistakes ||
+                  "-"
+                }
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="form-grid">
+          <div className="field full">
+            <label>
+              Raison d'entrée
+            </label>
+
+            <textarea
+              value={
+                trade.entryReason ||
+                ""
+              }
+              readOnly
+            />
+          </div>
+
+          <div className="field full">
+            <label>
+              Raison de sortie
+            </label>
+
+            <textarea
+              value={
+                trade.exitReason ||
+                ""
+              }
+              readOnly
+            />
+          </div>
+
+          <div className="field full">
+            <label>
+              Notes
+            </label>
+
+            <textarea
+              value={
+                trade.notes ||
+                ""
+              }
+              readOnly
+            />
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            onClick={
+              onClose
+            }
+          >
+            Fermer
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={() =>
+              onEdit(
+                trade
+              )
+            }
+          >
+            <Pencil size={17} />
+
+            Modifier le trade
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -4089,10 +5104,12 @@ function JournalPage({
 function CalendarPage({
   trades,
 }) {
-  const [currentDate, setCurrentDate] =
-    useState(
-      new Date()
-    );
+  const [
+    currentDate,
+    setCurrentDate,
+  ] = useState(
+    new Date()
+  );
 
   const year =
     currentDate.getFullYear();
@@ -4113,7 +5130,9 @@ function CalendarPage({
     useMemo(
       () =>
         trades.filter(
-          (trade) => {
+          (
+            trade
+          ) => {
             const date =
               getTradeDate(
                 trade
@@ -4140,61 +5159,90 @@ function CalendarPage({
 
   const dailyStats =
     useMemo(() => {
-      const map = new Map();
+      const map =
+        new Map();
 
       monthTrades.forEach(
-        (trade) => {
+        (
+          trade
+        ) => {
           const date =
             getTradeDate(
               trade
             );
 
-          if (!date) return;
+          if (!date) {
+            return;
+          }
 
           const key =
             date
               .toISOString()
-              .slice(0, 10);
+              .slice(
+                0,
+                10
+              );
 
-          if (!map.has(key)) {
-            map.set(key, {
-              date,
-              pnl: 0,
-              trades: 0,
-              wins: 0,
-              losses: 0,
-              breakevens: 0,
-              beExits: 0,
-              tpExits: 0,
-              slExits: 0,
-              r: 0,
-            });
+          if (
+            !map.has(
+              key
+            )
+          ) {
+            map.set(
+              key,
+              {
+                date,
+                pnl: 0,
+                trades: 0,
+                wins: 0,
+                losses: 0,
+                breakevens: 0,
+                beExits: 0,
+                tpExits: 0,
+                slExits: 0,
+                r: 0,
+              }
+            );
           }
 
           const item =
-            map.get(key);
+            map.get(
+              key
+            );
 
           const pnl =
             getTradeNetPnl(
               trade
             );
 
-          item.pnl += pnl;
-          item.trades += 1;
-          item.r += getTradeR(
-            trade
-          );
+          item.pnl +=
+            pnl;
+
+          item.trades +=
+            1;
+
+          item.r +=
+            getTradeR(
+              trade
+            );
 
           if (
-            isWinningTrade(trade)
+            isWinningTrade(
+              trade
+            )
           ) {
-            item.wins += 1;
+            item.wins +=
+              1;
           } else if (
-            isLosingTrade(trade)
+            isLosingTrade(
+              trade
+            )
           ) {
-            item.losses += 1;
+            item.losses +=
+              1;
           } else {
-            item.breakevens += 1;
+            item.breakevens +=
+              1;
           }
 
           if (
@@ -4202,19 +5250,22 @@ function CalendarPage({
               trade
             )
           ) {
-            item.beExits += 1;
+            item.beExits +=
+              1;
           } else if (
             isTakeProfitExit(
               trade
             )
           ) {
-            item.tpExits += 1;
+            item.tpExits +=
+              1;
           } else if (
             isStopLossExit(
               trade
             )
           ) {
-            item.slExits += 1;
+            item.slExits +=
+              1;
           }
         }
       );
@@ -4222,8 +5273,12 @@ function CalendarPage({
       return Array.from(
         map.values()
       ).sort(
-        (a, b) =>
-          a.date - b.date
+        (
+          a,
+          b
+        ) =>
+          a.date -
+          b.date
       );
     }, [
       monthTrades,
@@ -4231,17 +5286,27 @@ function CalendarPage({
 
   const monthPnl =
     monthTrades.reduce(
-      (sum, trade) =>
+      (
+        sum,
+        trade
+      ) =>
         sum +
-        getTradeNetPnl(trade),
+        getTradeNetPnl(
+          trade
+        ),
       0
     );
 
   const monthR =
     monthTrades.reduce(
-      (sum, trade) =>
+      (
+        sum,
+        trade
+      ) =>
         sum +
-        getTradeR(trade),
+        getTradeR(
+          trade
+        ),
       0
     );
 
@@ -4253,7 +5318,8 @@ function CalendarPage({
     ).getDay();
 
   const mondayOffset =
-    firstDay === 0
+    firstDay ===
+    0
       ? 6
       : firstDay - 1;
 
@@ -4268,7 +5334,8 @@ function CalendarPage({
 
   for (
     let index = 0;
-    index < mondayOffset;
+    index <
+    mondayOffset;
     index += 1
   ) {
     cells.push(null);
@@ -4276,24 +5343,30 @@ function CalendarPage({
 
   for (
     let day = 1;
-    day <= daysInMonth;
+    day <=
+    daysInMonth;
     day += 1
   ) {
     cells.push(day);
   }
 
   while (
-    cells.length % 7 !==
+    cells.length %
+      7 !==
     0
   ) {
     cells.push(null);
   }
 
   function getDayStats(day) {
-    if (!day) return null;
+    if (!day) {
+      return null;
+    }
 
     return dailyStats.find(
-      (item) =>
+      (
+        item
+      ) =>
         item.date.getDate() ===
         day
     );
@@ -4391,17 +5464,26 @@ function CalendarPage({
             "Ven",
             "Sam",
             "Dim",
-          ].map((day) => (
-            <div
-              className="calendar-weekday"
-              key={day}
-            >
-              {day}
-            </div>
-          ))}
+          ].map(
+            (
+              day
+            ) => (
+              <div
+                className="calendar-weekday"
+                key={
+                  day
+                }
+              >
+                {day}
+              </div>
+            )
+          )}
 
           {cells.map(
-            (day, index) => {
+            (
+              day,
+              index
+            ) => {
               const stats =
                 getDayStats(
                   day
@@ -4414,14 +5496,14 @@ function CalendarPage({
                       ? ""
                       : "empty"
                   }`}
-                  key={
-                    `${day}-${index}`
-                  }
+                  key={`${day}-${index}`}
                 >
                   {day && (
                     <>
                       <strong>
-                        {day}
+                        {
+                          day
+                        }
                       </strong>
 
                       {stats && (
@@ -4448,7 +5530,9 @@ function CalendarPage({
                           </small>
 
                           <small>
-                            {stats.beExits}{" "}
+                            {
+                              stats.beExits
+                            }{" "}
                             BE
                           </small>
 
@@ -4472,12 +5556,16 @@ function CalendarPage({
 
       <StatsTable
         title="Détail des journées"
-        rows={dailyStats}
+        rows={
+          dailyStats
+        }
         columns={[
           {
             key: "date",
             label: "Date",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               row.date.toLocaleDateString(
                 "fr-FR"
               ),
@@ -4505,7 +5593,9 @@ function CalendarPage({
           {
             key: "pnl",
             label: "P/L",
-            render: (row) => (
+            render: (
+              row
+            ) => (
               <span
                 className={getResultClass(
                   row.pnl
@@ -4520,7 +5610,9 @@ function CalendarPage({
           {
             key: "r",
             label: "R",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               `${formatNumber(
                 row.r,
                 2
@@ -4537,7 +5629,9 @@ function CalculatorPage({
 }) {
   const activeCapitals =
     capitals.filter(
-      (capital) =>
+      (
+        capital
+      ) =>
         capital.status !==
         "archived"
     );
@@ -4546,31 +5640,50 @@ function CalculatorPage({
     capitalId,
     setCapitalId,
   ] = useState(
-    activeCapitals[0]?.id ||
-      ""
+    activeCapitals[0]
+      ?.id || ""
   );
 
-  const [asset, setAsset] =
-    useState("XAUUSD");
+  const [
+    asset,
+    setAsset,
+  ] = useState(
+    "XAUUSD"
+  );
 
   const [
     direction,
     setDirection,
-  ] = useState("BUY");
+  ] = useState(
+    "BUY"
+  );
 
-  const [entry, setEntry] =
-    useState("");
+  const [
+    entry,
+    setEntry,
+  ] = useState(
+    ""
+  );
 
-  const [stopLoss, setStopLoss] =
-    useState("");
+  const [
+    stopLoss,
+    setStopLoss,
+  ] = useState(
+    ""
+  );
 
-  const [rr, setRR] =
-    useState(2);
+  const [
+    rr,
+    setRR,
+  ] = useState(2);
 
   const capital =
     activeCapitals.find(
-      (item) =>
-        item.id === capitalId
+      (
+        item
+      ) =>
+        item.id ===
+        capitalId
     );
 
   const riskMoney =
@@ -4623,16 +5736,23 @@ function CalculatorPage({
               </label>
 
               <select
-                value={capitalId}
-                onChange={(event) =>
+                value={
+                  capitalId
+                }
+                onChange={(
+                  event
+                ) =>
                   setCapitalId(
-                    event.target
+                    event
+                      .target
                       .value
                   )
                 }
               >
                 {activeCapitals.map(
-                  (item) => (
+                  (
+                    item
+                  ) => (
                     <option
                       key={
                         item.id
@@ -4641,7 +5761,9 @@ function CalculatorPage({
                         item.id
                       }
                     >
-                      {item.name}
+                      {
+                        item.name
+                      }
                     </option>
                   )
                 )}
@@ -4654,19 +5776,30 @@ function CalculatorPage({
               </label>
 
               <select
-                value={asset}
-                onChange={(event) =>
+                value={
+                  asset
+                }
+                onChange={(
+                  event
+                ) =>
                   setAsset(
-                    event.target
+                    event
+                      .target
                       .value
                   )
                 }
               >
                 {ASSETS.map(
-                  (item) => (
+                  (
+                    item
+                  ) => (
                     <option
-                      key={item}
-                      value={item}
+                      key={
+                        item
+                      }
+                      value={
+                        item
+                      }
                     >
                       {item}
                     </option>
@@ -4684,9 +5817,12 @@ function CalculatorPage({
                 value={
                   direction
                 }
-                onChange={(event) =>
+                onChange={(
+                  event
+                ) =>
                   setDirection(
-                    event.target
+                    event
+                      .target
                       .value
                   )
                 }
@@ -4708,10 +5844,15 @@ function CalculatorPage({
 
               <input
                 type="number"
-                value={entry}
-                onChange={(event) =>
+                value={
+                  entry
+                }
+                onChange={(
+                  event
+                ) =>
                   setEntry(
-                    event.target
+                    event
+                      .target
                       .value
                   )
                 }
@@ -4725,10 +5866,15 @@ function CalculatorPage({
 
               <input
                 type="number"
-                value={stopLoss}
-                onChange={(event) =>
+                value={
+                  stopLoss
+                }
+                onChange={(
+                  event
+                ) =>
                   setStopLoss(
-                    event.target
+                    event
+                      .target
                       .value
                   )
                 }
@@ -4741,23 +5887,35 @@ function CalculatorPage({
               </label>
 
               <select
-                value={rr}
-                onChange={(event) =>
+                value={
+                  rr
+                }
+                onChange={(
+                  event
+                ) =>
                   setRR(
                     Number(
-                      event.target
+                      event
+                        .target
                         .value
                     )
                   )
                 }
               >
                 {RR_OPTIONS.map(
-                  (value) => (
+                  (
+                    value
+                  ) => (
                     <option
-                      key={value}
-                      value={value}
+                      key={
+                        value
+                      }
+                      value={
+                        value
+                      }
                     >
-                      RR{value}
+                      RR
+                      {value}
                     </option>
                   )
                 )}
@@ -4767,7 +5925,9 @@ function CalculatorPage({
         </section>
 
         <section className="panel calculator-result">
-          <h2>Résultat</h2>
+          <h2>
+            Résultat
+          </h2>
 
           <div className="calculator-result-grid">
             <div>
@@ -4847,7 +6007,9 @@ function CalculatorPage({
       <StatsTable
         title="Objectifs RR"
         rows={RR_OPTIONS.map(
-          (value) => ({
+          (
+            value
+          ) => ({
             id: value,
             rr: value,
             tp: calculateTP(
@@ -4862,13 +6024,17 @@ function CalculatorPage({
           {
             key: "rr",
             label: "RR",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               `RR${row.rr}`,
           },
           {
             key: "tp",
             label: "Take Profit",
-            render: (row) =>
+            render: (
+              row
+            ) =>
               row.tp
                 ? formatNumber(
                     row.tp,
@@ -4909,7 +6075,9 @@ function SettingsPage({
             </span>
 
             <strong>
-              {capitals.length}
+              {
+                capitals.length
+              }
             </strong>
           </div>
 
@@ -4919,7 +6087,9 @@ function SettingsPage({
             </span>
 
             <strong>
-              {trades.length}
+              {
+                trades.length
+              }
             </strong>
           </div>
 
@@ -4939,9 +6109,10 @@ function SettingsPage({
         </div>
 
         <p className="settings-note">
-          Les données du journal sont
-          actuellement sauvegardées
-          dans le stockage local du
+          Les données du journal
+          sont actuellement
+          sauvegardées dans le
+          stockage local du
           navigateur.
         </p>
       </section>
@@ -4957,7 +6128,9 @@ function CapitalModal({
   onClose,
   onSave,
 }) {
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   return (
     <div className="modal-backdrop">
@@ -4971,7 +6144,9 @@ function CapitalModal({
 
           <button
             className="icon-button"
-            onClick={onClose}
+            onClick={
+              onClose
+            }
           >
             <X size={18} />
           </button>
@@ -4984,12 +6159,18 @@ function CapitalModal({
             </label>
 
             <input
-              value={form.name}
-              onChange={(event) =>
+              value={
+                form.name
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
-                  name: event.target
-                    .value,
+                  name:
+                    event
+                      .target
+                      .value,
                 })
               }
               placeholder="Capital Test"
@@ -5006,11 +6187,14 @@ function CapitalModal({
               value={
                 form.initialCapital
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   initialCapital:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5027,11 +6211,14 @@ function CapitalModal({
               value={
                 form.currentBalance
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   currentBalance:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5047,11 +6234,14 @@ function CapitalModal({
               value={
                 form.riskMode
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   riskMode:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5079,11 +6269,14 @@ function CapitalModal({
                 value={
                   form.riskPercent
                 }
-                onChange={(event) =>
+                onChange={(
+                  event
+                ) =>
                   setForm({
                     ...form,
                     riskPercent:
-                      event.target
+                      event
+                        .target
                         .value,
                   })
                 }
@@ -5101,11 +6294,14 @@ function CapitalModal({
                 value={
                   form.riskAmount
                 }
-                onChange={(event) =>
+                onChange={(
+                  event
+                ) =>
                   setForm({
                     ...form,
                     riskAmount:
-                      event.target
+                      event
+                        .target
                         .value,
                   })
                 }
@@ -5122,22 +6318,32 @@ function CapitalModal({
               value={
                 form.defaultRR
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   defaultRR:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
             >
               {RR_OPTIONS.map(
-                (rr) => (
+                (
+                  rr
+                ) => (
                   <option
-                    key={rr}
-                    value={rr}
+                    key={
+                      rr
+                    }
+                    value={
+                      rr
+                    }
                   >
-                    RR{rr}
+                    RR
+                    {rr}
                   </option>
                 )
               )}
@@ -5148,16 +6354,21 @@ function CapitalModal({
         <div className="modal-actions">
           <button
             className="secondary-button"
-            onClick={onClose}
+            onClick={
+              onClose
+            }
           >
             Annuler
           </button>
 
           <button
             className="primary-button"
-            onClick={onSave}
+            onClick={
+              onSave
+            }
           >
             <Check size={17} />
+
             Enregistrer
           </button>
         </div>
@@ -5175,14 +6386,20 @@ function TradeModal({
   onClose,
   onSave,
 }) {
-  if (!open) return null;
+  if (!open) {
+    return null;
+  }
 
   const isEditing =
-    Boolean(editingTradeId);
+    Boolean(
+      editingTradeId
+    );
 
   const activeCapitals =
     capitals.filter(
-      (capital) =>
+      (
+        capital
+      ) =>
         capital.status !==
         "archived"
     );
@@ -5194,7 +6411,9 @@ function TradeModal({
 
   const capital =
     availableCapitals.find(
-      (item) =>
+      (
+        item
+      ) =>
         item.id ===
         form.capitalId
     );
@@ -5211,10 +6430,14 @@ function TradeModal({
         );
 
   const entry =
-    Number(form.entry);
+    Number(
+      form.entry
+    );
 
   const stopLoss =
-    Number(form.stopLoss);
+    Number(
+      form.stopLoss
+    );
 
   const stopPips =
     calculateStopPips(
@@ -5267,7 +6490,9 @@ function TradeModal({
 
           <button
             className="icon-button"
-            onClick={onClose}
+            onClick={
+              onClose
+            }
           >
             <X size={18} />
           </button>
@@ -5283,11 +6508,14 @@ function TradeModal({
               value={
                 form.capitalId
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   capitalId:
-                    event.target
+                    event
+                      .target
                       .value,
                   riskMoneyOverride:
                     "",
@@ -5295,7 +6523,9 @@ function TradeModal({
               }
             >
               {availableCapitals.map(
-                (capitalItem) => (
+                (
+                  capitalItem
+                ) => (
                   <option
                     key={
                       capitalItem.id
@@ -5307,6 +6537,7 @@ function TradeModal({
                     {
                       capitalItem.name
                     }
+
                     {capitalItem.status ===
                     "archived"
                       ? " — Archivé"
@@ -5323,21 +6554,32 @@ function TradeModal({
             </label>
 
             <select
-              value={form.asset}
-              onChange={(event) =>
+              value={
+                form.asset
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   asset:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
             >
               {ASSETS.map(
-                (asset) => (
+                (
+                  asset
+                ) => (
                   <option
-                    key={asset}
-                    value={asset}
+                    key={
+                      asset
+                    }
+                    value={
+                      asset
+                    }
                   >
                     {asset}
                   </option>
@@ -5356,11 +6598,14 @@ function TradeModal({
               value={
                 form.dateTime
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   dateTime:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5376,22 +6621,33 @@ function TradeModal({
               value={
                 form.session
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   session:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
             >
               {SESSIONS.map(
-                (session) => (
+                (
+                  session
+                ) => (
                   <option
-                    key={session}
-                    value={session}
+                    key={
+                      session
+                    }
+                    value={
+                      session
+                    }
                   >
-                    {session}
+                    {
+                      session
+                    }
                   </option>
                 )
               )}
@@ -5407,11 +6663,14 @@ function TradeModal({
               value={
                 form.direction
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   direction:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5435,20 +6694,29 @@ function TradeModal({
               value={
                 form.timeframe
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   timeframe:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
             >
               {TIMEFRAMES.map(
-                (tf) => (
+                (
+                  tf
+                ) => (
                   <option
-                    key={tf}
-                    value={tf}
+                    key={
+                      tf
+                    }
+                    value={
+                      tf
+                    }
                   >
                     {tf}
                   </option>
@@ -5465,12 +6733,17 @@ function TradeModal({
             <input
               type="number"
               step="any"
-              value={form.entry}
-              onChange={(event) =>
+              value={
+                form.entry
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   entry:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5488,11 +6761,14 @@ function TradeModal({
               value={
                 form.stopLoss
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   stopLoss:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5505,22 +6781,35 @@ function TradeModal({
             </label>
 
             <select
-              value={form.rr}
-              onChange={(event) =>
+              value={
+                form.rr
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
-                  rr: event.target
-                    .value,
+                  rr:
+                    event
+                      .target
+                      .value,
                 })
               }
             >
               {RR_OPTIONS.map(
-                (rr) => (
+                (
+                  rr
+                ) => (
                   <option
-                    key={rr}
-                    value={rr}
+                    key={
+                      rr
+                    }
+                    value={
+                      rr
+                    }
                   >
-                    RR{rr}
+                    RR
+                    {rr}
                   </option>
                 )
               )}
@@ -5536,13 +6825,17 @@ function TradeModal({
               value={
                 form.exitType
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   exitType:
-                    event.target
+                    event
+                      .target
                       .value,
-                  exitPrice: "",
+                  exitPrice:
+                    "",
                 })
               }
             >
@@ -5573,11 +6866,14 @@ function TradeModal({
                 value={
                   form.exitPrice
                 }
-                onChange={(event) =>
+                onChange={(
+                  event
+                ) =>
                   setForm({
                     ...form,
                     exitPrice:
-                      event.target
+                      event
+                        .target
                         .value,
                   })
                 }
@@ -5590,7 +6886,7 @@ function TradeModal({
                     ? formatNumber(
                         automaticExit,
                         form.asset ===
-                          "USDJPY"
+                        "USDJPY"
                           ? 3
                           : 2
                       )
@@ -5610,22 +6906,33 @@ function TradeModal({
               value={
                 form.setup
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   setup:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
             >
               {SETUPS.map(
-                (setup) => (
+                (
+                  setup
+                ) => (
                   <option
-                    key={setup}
-                    value={setup}
+                    key={
+                      setup
+                    }
+                    value={
+                      setup
+                    }
                   >
-                    {setup}
+                    {
+                      setup
+                    }
                   </option>
                 )
               )}
@@ -5640,12 +6947,17 @@ function TradeModal({
             <input
               type="number"
               step="0.01"
-              value={form.fees}
-              onChange={(event) =>
+              value={
+                form.fees
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   fees:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5660,12 +6972,17 @@ function TradeModal({
             <input
               type="number"
               step="0.01"
-              value={form.swap}
-              onChange={(event) =>
+              value={
+                form.swap
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   swap:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5756,11 +7073,14 @@ function TradeModal({
               value={
                 form.entryReason
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   entryReason:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5776,11 +7096,14 @@ function TradeModal({
               value={
                 form.exitReason
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   exitReason:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5793,12 +7116,17 @@ function TradeModal({
             </label>
 
             <textarea
-              value={form.notes}
-              onChange={(event) =>
+              value={
+                form.notes
+              }
+              onChange={(
+                event
+              ) =>
                 setForm({
                   ...form,
                   notes:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -5809,14 +7137,18 @@ function TradeModal({
         <div className="modal-actions">
           <button
             className="secondary-button"
-            onClick={onClose}
+            onClick={
+              onClose
+            }
           >
             Annuler
           </button>
 
           <button
             className="primary-button"
-            onClick={onSave}
+            onClick={
+              onSave
+            }
           >
             <Check size={17} />
 
@@ -5871,7 +7203,9 @@ function Sidebar({
   return (
     <aside
       className={`sidebar ${
-        open ? "open" : ""
+        open
+          ? "open"
+          : ""
       }`}
     >
       <div className="brand">
@@ -5900,17 +7234,25 @@ function Sidebar({
             <button
               key={id}
               className={
-                activePage === id
+                activePage ===
+                id
                   ? "nav-item active"
                   : "nav-item"
               }
               onClick={() =>
-                navigate(id)
+                navigate(
+                  id
+                )
               }
             >
-              <Icon size={19} />
+              <Icon
+                size={19}
+              />
+
               <span>
-                {label}
+                {
+                  label
+                }
               </span>
             </button>
           )
@@ -5928,7 +7270,9 @@ function Topbar({
     <header className="topbar">
       <button
         className="mobile-menu"
-        onClick={onMenu}
+        onClick={
+          onMenu
+        }
       >
         <ChevronDown
           size={20}
@@ -5941,7 +7285,9 @@ function Topbar({
         </span>
 
         <strong>
-          {title}
+          {
+            title
+          }
         </strong>
       </div>
     </header>
@@ -5959,10 +7305,15 @@ export default function App() {
   const [
     sidebarOpen,
     setSidebarOpen,
-  ] = useState(false);
+  ] = useState(
+    false
+  );
 
-  const [capitals, setCapitals] =
-    useState(() => {
+  const [
+    capitals,
+    setCapitals,
+  ] = useState(
+    () => {
       try {
         const saved =
           localStorage.getItem(
@@ -5970,15 +7321,21 @@ export default function App() {
           );
 
         return saved
-          ? JSON.parse(saved)
+          ? JSON.parse(
+              saved
+            )
           : [];
       } catch {
         return [];
       }
-    });
+    }
+  );
 
-  const [trades, setTrades] =
-    useState(() => {
+  const [
+    trades,
+    setTrades,
+  ] = useState(
+    () => {
       try {
         const saved =
           localStorage.getItem(
@@ -5986,151 +7343,237 @@ export default function App() {
           );
 
         return saved
-          ? JSON.parse(saved)
+          ? JSON.parse(
+              saved
+            )
           : [];
       } catch {
         return [];
       }
-    });
+    }
+  );
 
   const [
     dashboardCapitalFilter,
     setDashboardCapitalFilter,
-  ] = useState("all");
+  ] = useState(
+    "all"
+  );
 
   const [
     capitalModalOpen,
     setCapitalModalOpen,
-  ] = useState(false);
+  ] = useState(
+    false
+  );
 
   const [
     editingCapitalId,
     setEditingCapitalId,
-  ] = useState(null);
+  ] = useState(
+    null
+  );
 
   const [
     capitalForm,
     setCapitalForm,
   ] = useState({
     name: "",
-    initialCapital: "",
-    currentBalance: "",
-    riskMode: "percentage",
-    riskPercent: "1",
-    riskAmount: "",
-    defaultRR: "2",
+    initialCapital:
+      "",
+    currentBalance:
+      "",
+    riskMode:
+      "percentage",
+    riskPercent:
+      "1",
+    riskAmount:
+      "",
+    defaultRR:
+      "2",
   });
 
   const [
     tradeModalOpen,
     setTradeModalOpen,
-  ] = useState(false);
+  ] = useState(
+    false
+  );
 
   const [
     editingTradeId,
     setEditingTradeId,
-  ] = useState(null);
+  ] = useState(
+    null
+  );
 
   const [
     tradeForm,
     setTradeForm,
   ] = useState({
-    capitalId: "",
-    asset: "XAUUSD",
-    dateTime: "",
-    session: "New York",
-    direction: "BUY",
-    timeframe: "M15",
-    entry: "",
-    stopLoss: "",
-    rr: "2",
-    exitType: "TP",
-    exitPrice: "",
-    fees: "",
-    swap: "",
-    setup: "ZS OA",
-    emotion: "",
-    planAdherence: "Oui",
-    mistakes: "",
-    entryReason: "",
-    exitReason: "",
-    notes: "",
-    riskMoneyOverride: "",
+    capitalId:
+      "",
+    asset:
+      "XAUUSD",
+    dateTime:
+      "",
+    session:
+      "New York",
+    direction:
+      "BUY",
+    timeframe:
+      "M15",
+    entry:
+      "",
+    stopLoss:
+      "",
+    rr:
+      "2",
+    exitType:
+      "TP",
+    exitPrice:
+      "",
+    fees:
+      "",
+    swap:
+      "",
+    setup:
+      "ZS OA",
+    emotion:
+      "",
+    planAdherence:
+      "Oui",
+    mistakes:
+      "",
+    entryReason:
+      "",
+    exitReason:
+      "",
+    notes:
+      "",
+    riskMoneyOverride:
+      "",
   });
 
   const [
     tradeCapitalFilter,
     setTradeCapitalFilter,
-  ] = useState("all");
+  ] = useState(
+    "all"
+  );
+
+  const [
+    selectedTrade,
+    setSelectedTrade,
+  ] = useState(
+    null
+  );
+
+  const [
+    tradeDetailOpen,
+    setTradeDetailOpen,
+  ] = useState(
+    false
+  );
 
   const [
     notification,
     setNotification,
-  ] = useState(null);
+  ] = useState(
+    null
+  );
 
-  useEffect(() => {
-    localStorage.setItem(
-      CAPITALS_STORAGE_KEY,
-      JSON.stringify(capitals)
-    );
-  }, [capitals]);
+  useEffect(
+    () => {
+      localStorage.setItem(
+        CAPITALS_STORAGE_KEY,
+        JSON.stringify(
+          capitals
+        )
+      );
+    },
+    [capitals]
+  );
 
-  useEffect(() => {
-    localStorage.setItem(
-      TRADES_STORAGE_KEY,
-      JSON.stringify(trades)
-    );
-  }, [trades]);
+  useEffect(
+    () => {
+      localStorage.setItem(
+        TRADES_STORAGE_KEY,
+        JSON.stringify(
+          trades
+        )
+      );
+    },
+    [trades]
+  );
 
-  useEffect(() => {
-    if (!notification) {
-      return;
-    }
+  useEffect(
+    () => {
+      if (!notification) {
+        return;
+      }
 
-    const timer =
-      setTimeout(() => {
-        setNotification(null);
-      }, 3500);
+      const timer =
+        setTimeout(
+          () => {
+            setNotification(
+              null
+            );
+          },
+          3500
+        );
 
-    return () =>
-      clearTimeout(timer);
-  }, [notification]);
+      return () =>
+        clearTimeout(
+          timer
+        );
+    },
+    [notification]
+  );
 
-  useEffect(() => {
-    if (
-      dashboardCapitalFilter ===
-      "all"
-    ) {
-      return;
-    }
-
-    if (!capitals.length) {
-      setDashboardCapitalFilter(
+  useEffect(
+    () => {
+      if (
+        dashboardCapitalFilter ===
         "all"
-      );
-      return;
-    }
+      ) {
+        return;
+      }
 
-    const exists =
-      capitals.some(
-        (capital) =>
-          capital.id ===
-          dashboardCapitalFilter
-      );
+      if (
+        !capitals.length
+      ) {
+        setDashboardCapitalFilter(
+          "all"
+        );
+        return;
+      }
 
-    if (!exists) {
-      setDashboardCapitalFilter(
-        "all"
-      );
-    }
-  }, [
-    capitals,
-    dashboardCapitalFilter,
-  ]);
+      const exists =
+        capitals.some(
+          (
+            capital
+          ) =>
+            capital.id ===
+            dashboardCapitalFilter
+        );
+
+      if (!exists) {
+        setDashboardCapitalFilter(
+          "all"
+        );
+      }
+    },
+    [
+      capitals,
+      dashboardCapitalFilter,
+    ]
+  );
 
   function showNotification(
     message,
-    type = "success"
+    type =
+      "success"
   ) {
     setNotification({
       message,
@@ -6138,25 +7581,42 @@ export default function App() {
     });
   }
 
-  function navigate(page) {
-    setActivePage(page);
-    setSidebarOpen(false);
+  function navigate(
+    page
+  ) {
+    setActivePage(
+      page
+    );
+
+    setSidebarOpen(
+      false
+    );
   }
 
   function openNewCapitalModal() {
-    setEditingCapitalId(null);
+    setEditingCapitalId(
+      null
+    );
 
     setCapitalForm({
       name: "",
-      initialCapital: "",
-      currentBalance: "",
-      riskMode: "percentage",
-      riskPercent: "1",
-      riskAmount: "",
-      defaultRR: "2",
+      initialCapital:
+        "",
+      currentBalance:
+        "",
+      riskMode:
+        "percentage",
+      riskPercent:
+        "1",
+      riskAmount:
+        "",
+      defaultRR:
+        "2",
     });
 
-    setCapitalModalOpen(true);
+    setCapitalModalOpen(
+      true
+    );
   }
 
   function openEditCapitalModal(
@@ -6167,28 +7627,38 @@ export default function App() {
     );
 
     setCapitalForm({
-      name: capital.name || "",
+      name:
+        capital.name ||
+        "",
+
       initialCapital:
         capital.initialCapital ??
         "",
+
       currentBalance:
         capital.currentBalance ??
         "",
+
       riskMode:
         capital.riskMode ||
         "percentage",
+
       riskPercent:
         capital.riskPercent ??
         "1",
+
       riskAmount:
         capital.riskAmount ??
         "",
+
       defaultRR:
         capital.defaultRR ??
         "2",
     });
 
-    setCapitalModalOpen(true);
+    setCapitalModalOpen(
+      true
+    );
   }
 
   function saveCapital() {
@@ -6250,11 +7720,17 @@ export default function App() {
       }
     }
 
-    if (editingCapitalId) {
+    if (
+      editingCapitalId
+    ) {
       setCapitals(
-        (current) =>
+        (
+          current
+        ) =>
           current.map(
-            (capital) =>
+            (
+              capital
+            ) =>
               capital.id ===
               editingCapitalId
                 ? {
@@ -6272,15 +7748,18 @@ export default function App() {
                     riskPercent:
                       Number(
                         capitalForm.riskPercent
-                      ) || 0,
+                      ) ||
+                      0,
                     riskAmount:
                       Number(
                         capitalForm.riskAmount
-                      ) || 0,
+                      ) ||
+                      0,
                     defaultRR:
                       Number(
                         capitalForm.defaultRR
-                      ) || 2,
+                      ) ||
+                      2,
                   }
                 : capital
           )
@@ -6290,38 +7769,55 @@ export default function App() {
         "Capital modifié."
       );
     } else {
-      const capital = {
-        id: createId(
-          "capital"
-        ),
-        name,
-        initialCapital:
-          initial,
-        currentBalance:
-          Number(
-            capitalForm.currentBalance
-          ) || initial,
-        riskMode:
-          capitalForm.riskMode,
-        riskPercent:
-          Number(
-            capitalForm.riskPercent
-          ) || 0,
-        riskAmount:
-          Number(
-            capitalForm.riskAmount
-          ) || 0,
-        defaultRR:
-          Number(
-            capitalForm.defaultRR
-          ) || 2,
-        status: "active",
-        createdAt:
-          new Date().toISOString(),
-      };
+      const capital =
+        {
+          id: createId(
+            "capital"
+          ),
+
+          name,
+
+          initialCapital:
+            initial,
+
+          currentBalance:
+            Number(
+              capitalForm.currentBalance
+            ) ||
+            initial,
+
+          riskMode:
+            capitalForm.riskMode,
+
+          riskPercent:
+            Number(
+              capitalForm.riskPercent
+            ) ||
+            0,
+
+          riskAmount:
+            Number(
+              capitalForm.riskAmount
+            ) ||
+            0,
+
+          defaultRR:
+            Number(
+              capitalForm.defaultRR
+            ) ||
+            2,
+
+          status:
+            "active",
+
+          createdAt:
+            new Date().toISOString(),
+        };
 
       setCapitals(
-        (current) => [
+        (
+          current
+        ) => [
           ...current,
           capital,
         ]
@@ -6341,15 +7837,24 @@ export default function App() {
       );
     }
 
-    setCapitalModalOpen(false);
+    setCapitalModalOpen(
+      false
+    );
   }
 
-  function archiveCapital(id) {
+  function archiveCapital(
+    id
+  ) {
     setCapitals(
-      (current) =>
+      (
+        current
+      ) =>
         current.map(
-          (capital) =>
-            capital.id === id
+          (
+            capital
+          ) =>
+            capital.id ===
+            id
               ? {
                   ...capital,
                   status:
@@ -6364,12 +7869,19 @@ export default function App() {
     );
   }
 
-  function restoreCapital(id) {
+  function restoreCapital(
+    id
+  ) {
     setCapitals(
-      (current) =>
+      (
+        current
+      ) =>
         current.map(
-          (capital) =>
-            capital.id === id
+          (
+            capital
+          ) =>
+            capital.id ===
+            id
               ? {
                   ...capital,
                   status:
@@ -6384,18 +7896,26 @@ export default function App() {
     );
   }
 
-  function deleteCapital(id) {
+  function deleteCapital(
+    id
+  ) {
     const linkedTrades =
       trades.some(
-        (trade) =>
-          trade.capitalId === id
+        (
+          trade
+        ) =>
+          trade.capitalId ===
+          id
       );
 
-    if (linkedTrades) {
+    if (
+      linkedTrades
+    ) {
       showNotification(
         "Impossible de supprimer ce capital : des trades lui sont liés.",
         "error"
       );
+
       return;
     }
 
@@ -6408,10 +7928,15 @@ export default function App() {
     }
 
     setCapitals(
-      (current) =>
+      (
+        current
+      ) =>
         current.filter(
-          (capital) =>
-            capital.id !== id
+          (
+            capital
+          ) =>
+            capital.id !==
+            id
         )
     );
 
@@ -6432,7 +7957,9 @@ export default function App() {
   function openNewTradeModal() {
     const activeCapitals =
       capitals.filter(
-        (capital) =>
+        (
+          capital
+        ) =>
           capital.status !==
           "archived"
       );
@@ -6445,41 +7972,82 @@ export default function App() {
         "Créez d'abord un capital actif.",
         "error"
       );
+
       return;
     }
 
     const capital =
       activeCapitals[0];
 
-    setEditingTradeId(null);
+    setEditingTradeId(
+      null
+    );
 
     setTradeForm({
       capitalId:
         capital.id,
-      asset: "XAUUSD",
+
+      asset:
+        "XAUUSD",
+
       dateTime:
         getDateTimeInputValue(),
-      session: "New York",
-      direction: "BUY",
-      timeframe: "M15",
-      entry: "",
-      stopLoss: "",
+
+      session:
+        "New York",
+
+      direction:
+        "BUY",
+
+      timeframe:
+        "M15",
+
+      entry:
+        "",
+
+      stopLoss:
+        "",
+
       rr: String(
         capital.defaultRR ||
           2
       ),
-      exitType: "TP",
-      exitPrice: "",
-      fees: "",
-      swap: "",
-      setup: "ZS OA",
-      emotion: "",
-      planAdherence: "Oui",
-      mistakes: "",
-      entryReason: "",
-      exitReason: "",
-      notes: "",
-      riskMoneyOverride: "",
+
+      exitType:
+        "TP",
+
+      exitPrice:
+        "",
+
+      fees:
+        "",
+
+      swap:
+        "",
+
+      setup:
+        "ZS OA",
+
+      emotion:
+        "",
+
+      planAdherence:
+        "Oui",
+
+      mistakes:
+        "",
+
+      entryReason:
+        "",
+
+      exitReason:
+        "",
+
+      notes:
+        "",
+
+      riskMoneyOverride:
+        "",
     });
 
     setTradeModalOpen(
@@ -6490,67 +8058,102 @@ export default function App() {
   function openEditTradeModal(
     trade
   ) {
+    setTradeDetailOpen(
+      false
+    );
+
+    setSelectedTrade(
+      null
+    );
+
     setEditingTradeId(
       trade.id
     );
 
     setTradeForm({
       capitalId:
-        trade.capitalId || "",
+        trade.capitalId ||
+        "",
+
       asset:
         trade.asset ||
         "XAUUSD",
+
       dateTime:
         getDateTimeInputValue(
           trade.dateTime
         ),
+
       session:
         trade.session ||
         "New York",
+
       direction:
         trade.direction ||
         "BUY",
+
       timeframe:
         trade.timeframe ||
         "M15",
+
       entry:
-        trade.entry ?? "",
+        trade.entry ??
+        "",
+
       stopLoss:
         trade.stopLoss ??
         "",
-      rr:
-        String(
-          trade.rr ?? 2
-        ),
+
+      rr: String(
+        trade.rr ??
+          2
+      ),
+
       exitType:
         getTradeExitType(
           trade
         ),
+
       exitPrice:
         trade.exitPrice ??
         "",
+
       fees:
-        trade.fees ?? "",
+        trade.fees ??
+        "",
+
       swap:
-        trade.swap ?? "",
+        trade.swap ??
+        "",
+
       setup:
         trade.setup ||
         "ZS OA",
+
       emotion:
-        trade.emotion || "",
+        trade.emotion ||
+        "",
+
       planAdherence:
         trade.planAdherence ||
         "Oui",
+
       mistakes:
-        trade.mistakes || "",
+        trade.mistakes ||
+        "",
+
       entryReason:
         trade.entryReason ||
         "",
+
       exitReason:
         trade.exitReason ||
         "",
+
       notes:
-        trade.notes || "",
+        trade.notes ||
+        "",
+
       riskMoneyOverride:
         trade.capitalRiskSnapshot ||
         trade.riskMoney ||
@@ -6562,11 +8165,47 @@ export default function App() {
     );
   }
 
+  function openTradeDetails(
+    trade
+  ) {
+    const capital =
+      capitals.find(
+        (
+          item
+        ) =>
+          item.id ===
+          trade.capitalId
+      );
+
+    setSelectedTrade({
+      ...trade,
+      _capitalName:
+        capital?.name ||
+        "Inconnu",
+    });
+
+    setTradeDetailOpen(
+      true
+    );
+  }
+
+  function closeTradeDetails() {
+    setTradeDetailOpen(
+      false
+    );
+
+    setSelectedTrade(
+      null
+    );
+  }
+
   function saveTrade() {
     const editingTrade =
       editingTradeId
         ? trades.find(
-            (trade) =>
+            (
+              trade
+            ) =>
               trade.id ===
               editingTradeId
           )
@@ -6574,7 +8213,9 @@ export default function App() {
 
     const capital =
       capitals.find(
-        (item) =>
+        (
+          item
+        ) =>
           item.id ===
           tradeForm.capitalId
       );
@@ -6584,6 +8225,7 @@ export default function App() {
         "Capital invalide.",
         "error"
       );
+
       return;
     }
 
@@ -6611,6 +8253,7 @@ export default function App() {
         "Veuillez renseigner une entrée et un Stop Loss valides.",
         "error"
       );
+
       return;
     }
 
@@ -6621,11 +8264,15 @@ export default function App() {
         stopLoss
       );
 
-    if (stopPips <= 0) {
+    if (
+      stopPips <=
+      0
+    ) {
       showNotification(
         "Le Stop Loss doit être différent du prix d'entrée.",
         "error"
       );
+
       return;
     }
 
@@ -6643,7 +8290,8 @@ export default function App() {
       Number.isFinite(
         storedHistoricalRisk
       ) &&
-      storedHistoricalRisk > 0
+      storedHistoricalRisk >
+        0
     ) {
       riskMoney =
         storedHistoricalRisk;
@@ -6659,7 +8307,8 @@ export default function App() {
       "percentage"
         ? Number(
             capital.riskPercent
-          ) || 0
+          ) ||
+          0
         : capital.currentBalance >
           0
         ? (riskMoney /
@@ -6682,11 +8331,15 @@ export default function App() {
         pipValue
       );
 
-    if (lot <= 0) {
+    if (
+      lot <=
+      0
+    ) {
       showNotification(
         "Le lot calculé est invalide. Vérifiez le risque et le Stop Loss.",
         "error"
       );
+
       return;
     }
 
@@ -6704,14 +8357,21 @@ export default function App() {
           "BE"
       ).toUpperCase();
 
-    let exitPrice = 0;
+    let exitPrice =
+      0;
 
-    if (exitType === "TP") {
-      exitPrice = tp;
-    } else if (
-      exitType === "SL"
+    if (
+      exitType ===
+      "TP"
     ) {
-      exitPrice = stopLoss;
+      exitPrice =
+        tp;
+    } else if (
+      exitType ===
+      "SL"
+    ) {
+      exitPrice =
+        stopLoss;
     } else {
       exitPrice =
         Number(
@@ -6722,12 +8382,14 @@ export default function App() {
         !Number.isFinite(
           exitPrice
         ) ||
-        exitPrice <= 0
+        exitPrice <=
+          0
       ) {
         showNotification(
           "Pour une fermeture BE, indiquez le prix réel de sortie.",
           "error"
         );
+
         return;
       }
     }
@@ -6748,12 +8410,14 @@ export default function App() {
     const fees =
       Number(
         tradeForm.fees
-      ) || 0;
+      ) ||
+      0;
 
     const swap =
       Number(
         tradeForm.swap
-      ) || 0;
+      ) ||
+      0;
 
     const netPnl =
       grossPnl -
@@ -6761,113 +8425,136 @@ export default function App() {
       swap;
 
     const resultR =
-      riskMoney > 0
+      riskMoney >
+      0
         ? netPnl /
           riskMoney
         : 0;
 
-    let result = "BE";
+    let result =
+      "BE";
 
     if (
       netPnl >
       RESULT_EPSILON
     ) {
-      result = "Win";
+      result =
+        "Win";
     } else if (
       netPnl <
       -RESULT_EPSILON
     ) {
-      result = "Loss";
+      result =
+        "Loss";
     }
 
-    const updatedTrade = {
-      ...(editingTrade || {}),
+    const updatedTrade =
+      {
+        ...(editingTrade ||
+          {}),
 
-      id:
-        editingTrade?.id ||
-        createId("trade"),
+        id:
+          editingTrade?.id ||
+          createId(
+            "trade"
+          ),
 
-      capitalId:
-        tradeForm.capitalId,
+        capitalId:
+          tradeForm.capitalId,
 
-      asset:
-        tradeForm.asset,
+        asset:
+          tradeForm.asset,
 
-      dateTime:
-        tradeForm.dateTime,
+        dateTime:
+          tradeForm.dateTime,
 
-      session:
-        tradeForm.session,
+        session:
+          tradeForm.session,
 
-      direction:
-        tradeForm.direction,
+        direction:
+          tradeForm.direction,
 
-      timeframe:
-        tradeForm.timeframe,
+        timeframe:
+          tradeForm.timeframe,
 
-      entry,
-      stopLoss,
+        entry,
 
-      rr:
-        Number(
-          tradeForm.rr
-        ),
+        stopLoss,
 
-      tp,
-      stopPips,
-      pipValue,
-      lot,
-      riskMoney,
-      riskPercent,
+        rr:
+          Number(
+            tradeForm.rr
+          ),
 
-      exitType,
+        tp,
 
-      exitPrice,
+        stopPips,
 
-      result,
+        pipValue,
 
-      grossPnl,
-      fees,
-      swap,
-      pnl: netPnl,
-      resultPips,
-      resultR,
+        lot,
 
-      setup:
-        tradeForm.setup,
-
-      emotion:
-        tradeForm.emotion,
-
-      planAdherence:
-        tradeForm.planAdherence,
-
-      mistakes:
-        tradeForm.mistakes,
-
-      entryReason:
-        tradeForm.entryReason,
-
-      exitReason:
-        tradeForm.exitReason,
-
-      notes:
-        tradeForm.notes,
-
-      status: "closed",
-
-      createdAt:
-        editingTrade?.createdAt ||
-        new Date().toISOString(),
-
-      updatedAt:
-        new Date().toISOString(),
-
-      capitalRiskSnapshot:
         riskMoney,
-    };
 
-    if (editingTrade) {
+        riskPercent,
+
+        exitType,
+
+        exitPrice,
+
+        result,
+
+        grossPnl,
+
+        fees,
+
+        swap,
+
+        pnl:
+          netPnl,
+
+        resultPips,
+
+        resultR,
+
+        setup:
+          tradeForm.setup,
+
+        emotion:
+          tradeForm.emotion,
+
+        planAdherence:
+          tradeForm.planAdherence,
+
+        mistakes:
+          tradeForm.mistakes,
+
+        entryReason:
+          tradeForm.entryReason,
+
+        exitReason:
+          tradeForm.exitReason,
+
+        notes:
+          tradeForm.notes,
+
+        status:
+          "closed",
+
+        createdAt:
+          editingTrade?.createdAt ||
+          new Date().toISOString(),
+
+        updatedAt:
+          new Date().toISOString(),
+
+        capitalRiskSnapshot:
+          riskMoney,
+      };
+
+    if (
+      editingTrade
+    ) {
       const oldPnl =
         getTradeNetPnl(
           editingTrade
@@ -6880,9 +8567,13 @@ export default function App() {
         updatedTrade.capitalId;
 
       setTrades(
-        (current) =>
+        (
+          current
+        ) =>
           current.map(
-            (trade) =>
+            (
+              trade
+            ) =>
               trade.id ===
               editingTrade.id
                 ? updatedTrade
@@ -6891,9 +8582,13 @@ export default function App() {
       );
 
       setCapitals(
-        (current) =>
+        (
+          current
+        ) =>
           current.map(
-            (item) => {
+            (
+              item
+            ) => {
               if (
                 oldCapitalId ===
                   newCapitalId &&
@@ -6905,7 +8600,8 @@ export default function App() {
                   currentBalance:
                     (Number(
                       item.currentBalance
-                    ) || 0) -
+                    ) ||
+                      0) -
                     oldPnl +
                     netPnl,
                 };
@@ -6920,7 +8616,8 @@ export default function App() {
                   currentBalance:
                     (Number(
                       item.currentBalance
-                    ) || 0) -
+                    ) ||
+                      0) -
                     oldPnl,
                 };
               }
@@ -6934,7 +8631,8 @@ export default function App() {
                   currentBalance:
                     (Number(
                       item.currentBalance
-                    ) || 0) +
+                    ) ||
+                      0) +
                     netPnl,
                 };
               }
@@ -6948,7 +8646,9 @@ export default function App() {
         false
       );
 
-      setEditingTradeId(null);
+      setEditingTradeId(
+        null
+      );
 
       showNotification(
         `Trade modifié : ${exitType} / ${getTradeResultLabel(
@@ -6962,16 +8662,22 @@ export default function App() {
     }
 
     setTrades(
-      (current) => [
+      (
+        current
+      ) => [
         ...current,
         updatedTrade,
       ]
     );
 
     setCapitals(
-      (current) =>
+      (
+        current
+      ) =>
         current.map(
-          (item) =>
+          (
+            item
+          ) =>
             item.id ===
             capital.id
               ? {
@@ -6979,7 +8685,8 @@ export default function App() {
                   currentBalance:
                     (Number(
                       item.currentBalance
-                    ) || 0) +
+                    ) ||
+                      0) +
                     netPnl,
                 }
               : item
@@ -6999,11 +8706,16 @@ export default function App() {
     );
   }
 
-  function deleteTrade(id) {
+  function deleteTrade(
+    id
+  ) {
     const trade =
       trades.find(
-        (item) =>
-          item.id === id
+        (
+          item
+        ) =>
+          item.id ===
+          id
       );
 
     if (!trade) {
@@ -7024,17 +8736,26 @@ export default function App() {
       );
 
     setTrades(
-      (current) =>
+      (
+        current
+      ) =>
         current.filter(
-          (item) =>
-            item.id !== id
+          (
+            item
+          ) =>
+            item.id !==
+            id
         )
     );
 
     setCapitals(
-      (current) =>
+      (
+        current
+      ) =>
         current.map(
-          (capital) =>
+          (
+            capital
+          ) =>
             capital.id ===
             trade.capitalId
               ? {
@@ -7042,12 +8763,20 @@ export default function App() {
                   currentBalance:
                     (Number(
                       capital.currentBalance
-                    ) || 0) -
+                    ) ||
+                      0) -
                     pnl,
                 }
               : capital
         )
     );
+
+    if (
+      selectedTrade?.id ===
+      id
+    ) {
+      closeTradeDetails();
+    }
 
     showNotification(
       "Trade supprimé."
@@ -7055,13 +8784,35 @@ export default function App() {
   }
 
   const pageTitles = {
-    dashboard: "Dashboard",
-    journal: "Journal",
-    capitals: "Capitaux",
-    calendar: "Calendrier",
-    calculator: "Calculateur",
-    settings: "Paramètres",
+    dashboard:
+      "Dashboard",
+
+    journal:
+      "Journal",
+
+    capitals:
+      "Capitaux",
+
+    calendar:
+      "Calendrier",
+
+    calculator:
+      "Calculateur",
+
+    settings:
+      "Paramètres",
   };
+
+  const selectedTradeCapital =
+    selectedTrade
+      ? capitals.find(
+          (
+            capital
+          ) =>
+            capital.id ===
+            selectedTrade.capitalId
+        )
+      : null;
 
   function renderPage() {
     switch (
@@ -7070,8 +8821,12 @@ export default function App() {
       case "dashboard":
         return (
           <DashboardPage
-            capitals={capitals}
-            trades={trades}
+            capitals={
+              capitals
+            }
+            trades={
+              trades
+            }
             selectedCapitalId={
               dashboardCapitalFilter
             }
@@ -7084,8 +8839,12 @@ export default function App() {
       case "journal":
         return (
           <JournalPage
-            trades={trades}
-            capitals={capitals}
+            trades={
+              trades
+            }
+            capitals={
+              capitals
+            }
             filter={
               tradeCapitalFilter
             }
@@ -7094,6 +8853,9 @@ export default function App() {
             }
             onNew={
               openNewTradeModal
+            }
+            onView={
+              openTradeDetails
             }
             onEdit={
               openEditTradeModal
@@ -7107,8 +8869,12 @@ export default function App() {
       case "capitals":
         return (
           <CapitalPage
-            capitals={capitals}
-            trades={trades}
+            capitals={
+              capitals
+            }
+            trades={
+              trades
+            }
             onNew={
               openNewCapitalModal
             }
@@ -7130,22 +8896,30 @@ export default function App() {
       case "calendar":
         return (
           <CalendarPage
-            trades={trades}
+            trades={
+              trades
+            }
           />
         );
 
       case "calculator":
         return (
           <CalculatorPage
-            capitals={capitals}
+            capitals={
+              capitals
+            }
           />
         );
 
       case "settings":
         return (
           <SettingsPage
-            capitals={capitals}
-            trades={trades}
+            capitals={
+              capitals
+            }
+            trades={
+              trades
+            }
           />
         );
 
@@ -7160,8 +8934,12 @@ export default function App() {
         activePage={
           activePage
         }
-        navigate={navigate}
-        open={sidebarOpen}
+        navigate={
+          navigate
+        }
+        open={
+          sidebarOpen
+        }
       />
 
       <div className="main-shell">
@@ -7173,14 +8951,18 @@ export default function App() {
           }
           onMenu={() =>
             setSidebarOpen(
-              (value) =>
+              (
+                value
+              ) =>
                 !value
             )
           }
         />
 
         <main>
-          {renderPage()}
+          {
+            renderPage()
+          }
         </main>
       </div>
 
@@ -7188,7 +8970,9 @@ export default function App() {
         <div
           className={`notification ${notification.type}`}
         >
-          <Check size={17} />
+          <Check
+            size={17}
+          />
 
           <span>
             {
@@ -7205,7 +8989,9 @@ export default function App() {
         editingCapitalId={
           editingCapitalId
         }
-        form={capitalForm}
+        form={
+          capitalForm
+        }
         setForm={
           setCapitalForm
         }
@@ -7214,26 +9000,57 @@ export default function App() {
             false
           )
         }
-        onSave={saveCapital}
+        onSave={
+          saveCapital
+        }
       />
 
       <TradeModal
-        open={tradeModalOpen}
+        open={
+          tradeModalOpen
+        }
         editingTradeId={
           editingTradeId
         }
-        form={tradeForm}
-        setForm={setTradeForm}
-        capitals={capitals}
+        form={
+          tradeForm
+        }
+        setForm={
+          setTradeForm
+        }
+        capitals={
+          capitals
+        }
         onClose={() => {
           setTradeModalOpen(
             false
           );
+
           setEditingTradeId(
             null
           );
         }}
-        onSave={saveTrade}
+        onSave={
+          saveTrade
+        }
+      />
+
+      <TradeDetailModal
+        open={
+          tradeDetailOpen
+        }
+        trade={
+          selectedTrade
+        }
+        capital={
+          selectedTradeCapital
+        }
+        onClose={
+          closeTradeDetails
+        }
+        onEdit={
+          openEditTradeModal
+        }
       />
     </div>
   );
