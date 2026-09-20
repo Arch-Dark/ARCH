@@ -77,6 +77,12 @@ const TIMEFRAMES = [
   "D1",
 ];
 
+const EXIT_TYPES = [
+  "TP",
+  "SL",
+  "BE",
+];
+
 const RR_OPTIONS = Array.from(
   { length: 10 },
   (_, index) => index + 1
@@ -135,13 +141,34 @@ function getTradeTimestamp(trade) {
     : 0;
 }
 
-function isBreakEvenPnl(value) {
-  const pnl = Number(value);
+/*
+  IMPORTANT :
 
-  return (
-    Number.isFinite(pnl) &&
-    Math.abs(pnl) <= RESULT_EPSILON
-  );
+  exitType = manière dont le trade a été fermé
+  ------------------------------------------------
+  TP = fermeture sur Take Profit
+  SL = fermeture sur Stop Loss
+  BE = fermeture en Break-even
+
+  result / outcome = résultat financier réel
+  ------------------------------------------------
+  Win  = P/L positif
+  Loss = P/L négatif
+  BE   = P/L égal à 0
+
+  Ces deux informations sont volontairement indépendantes.
+*/
+
+function getTradeExitType(trade) {
+  const exitType = String(
+    trade?.exitType || ""
+  ).toUpperCase();
+
+  if (EXIT_TYPES.includes(exitType)) {
+    return exitType;
+  }
+
+  return "BE";
 }
 
 function getTradeOutcome(trade) {
@@ -158,24 +185,56 @@ function getTradeOutcome(trade) {
   return "BE";
 }
 
-function isBreakEvenTrade(trade) {
+function getTradeResultLabel(trade) {
+  const outcome = getTradeOutcome(trade);
+
+  if (outcome === "Win") {
+    return "Gain";
+  }
+
+  if (outcome === "Loss") {
+    return "Perte";
+  }
+
+  return "BE";
+}
+
+function isBreakEvenPnl(value) {
+  const pnl = Number(value);
+
   return (
-    getTradeOutcome(trade) ===
-    "BE"
+    Number.isFinite(pnl) &&
+    Math.abs(pnl) <= RESULT_EPSILON
   );
+}
+
+function isBreakEvenTrade(trade) {
+  return getTradeOutcome(trade) === "BE";
 }
 
 function isWinningTrade(trade) {
-  return (
-    getTradeOutcome(trade) ===
-    "Win"
-  );
+  return getTradeOutcome(trade) === "Win";
 }
 
 function isLosingTrade(trade) {
+  return getTradeOutcome(trade) === "Loss";
+}
+
+function isBreakEvenExit(trade) {
   return (
-    getTradeOutcome(trade) ===
-    "Loss"
+    getTradeExitType(trade) === "BE"
+  );
+}
+
+function isTakeProfitExit(trade) {
+  return (
+    getTradeExitType(trade) === "TP"
+  );
+}
+
+function isStopLossExit(trade) {
+  return (
+    getTradeExitType(trade) === "SL"
   );
 }
 
@@ -342,8 +401,7 @@ function getCapitalRiskPercent(capital) {
   if (!capital) return 0;
 
   if (
-    capital.riskMode ===
-    "percentage"
+    capital.riskMode === "percentage"
   ) {
     return (
       Number(capital.riskPercent) || 0
@@ -368,22 +426,6 @@ function getCapitalRiskPercent(capital) {
   );
 }
 
-function getResultColor(value) {
-  if (isBreakEvenPnl(value)) {
-    return "#94a3b8";
-  }
-
-  if (value > 0) {
-    return "#22c55e";
-  }
-
-  if (value < 0) {
-    return "#ef4444";
-  }
-
-  return "#94a3b8";
-}
-
 function getResultClass(value) {
   if (isBreakEvenPnl(value)) {
     return "neutral";
@@ -394,6 +436,30 @@ function getResultClass(value) {
   }
 
   if (value < 0) {
+    return "negative";
+  }
+
+  return "neutral";
+}
+
+function getOutcomeClass(outcome) {
+  if (outcome === "Win") {
+    return "positive";
+  }
+
+  if (outcome === "Loss") {
+    return "negative";
+  }
+
+  return "neutral";
+}
+
+function getExitClass(exitType) {
+  if (exitType === "TP") {
+    return "positive";
+  }
+
+  if (exitType === "SL") {
     return "negative";
   }
 
@@ -679,24 +745,34 @@ function calculatePerformanceStats(
         getTradeTimestamp(b)
     );
 
-  const now = new Date();
-
   const wins =
     closedTrades.filter(
-      (trade) =>
-        isWinningTrade(trade)
+      isWinningTrade
     );
 
   const losses =
     closedTrades.filter(
-      (trade) =>
-        isLosingTrade(trade)
+      isLosingTrade
     );
 
   const breakevens =
     closedTrades.filter(
-      (trade) =>
-        isBreakEvenTrade(trade)
+      isBreakEvenTrade
+    );
+
+  const tpExits =
+    closedTrades.filter(
+      isTakeProfitExit
+    );
+
+  const slExits =
+    closedTrades.filter(
+      isStopLossExit
+    );
+
+  const beExits =
+    closedTrades.filter(
+      isBreakEvenExit
     );
 
   const totalPnl =
@@ -889,7 +965,7 @@ function calculatePerformanceStats(
       .filter((trade) =>
         isSameDay(
           getTradeDate(trade),
-          now
+          new Date()
         )
       )
       .reduce(
@@ -904,7 +980,7 @@ function calculatePerformanceStats(
       .filter((trade) =>
         isSameWeek(
           getTradeDate(trade),
-          now
+          new Date()
         )
       )
       .reduce(
@@ -919,7 +995,7 @@ function calculatePerformanceStats(
       .filter((trade) =>
         isSameMonth(
           getTradeDate(trade),
-          now
+          new Date()
         )
       )
       .reduce(
@@ -945,6 +1021,11 @@ function calculatePerformanceStats(
     losses: losses.length,
     breakevens:
       breakevens.length,
+
+    tpExits: tpExits.length,
+    slExits: slExits.length,
+    beExits: beExits.length,
+
     totalPnl,
     grossProfit,
     grossLoss,
@@ -1701,73 +1782,77 @@ function DashboardPage({
     [trades, capitalInitialTotal]
   );
 
-  const globalActiveTrades = useMemo(
-    () =>
-      trades.filter(
-        (trade) => {
-          const capital =
-            capitals.find(
-              (item) =>
-                item.id ===
-                trade.capitalId
+  const globalActiveTrades =
+    useMemo(
+      () =>
+        trades.filter(
+          (trade) => {
+            const capital =
+              capitals.find(
+                (item) =>
+                  item.id ===
+                  trade.capitalId
+              );
+
+            return (
+              isClosedTrade(trade) &&
+              capital &&
+              capital.status !==
+                "archived"
             );
+          }
+        ),
+      [trades, capitals]
+    );
 
-          return (
-            isClosedTrade(trade) &&
-            capital &&
-            capital.status !==
-              "archived"
-          );
-        }
-      ),
-    [trades, capitals]
-  );
+  const globalArchivedTrades =
+    useMemo(
+      () =>
+        trades.filter(
+          (trade) => {
+            const capital =
+              capitals.find(
+                (item) =>
+                  item.id ===
+                  trade.capitalId
+              );
 
-  const globalArchivedTrades = useMemo(
-    () =>
-      trades.filter(
-        (trade) => {
-          const capital =
-            capitals.find(
-              (item) =>
-                item.id ===
-                trade.capitalId
+            return (
+              isClosedTrade(trade) &&
+              capital &&
+              capital.status ===
+                "archived"
             );
+          }
+        ),
+      [trades, capitals]
+    );
 
-          return (
-            isClosedTrade(trade) &&
-            capital &&
-            capital.status ===
-              "archived"
-          );
-        }
-      ),
-    [trades, capitals]
-  );
-
-  const activeGlobalStats = useMemo(
-    () =>
-      calculatePerformanceStats(
+  const activeGlobalStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          globalActiveTrades,
+          activeCapitalInitialTotal
+        ),
+      [
         globalActiveTrades,
-        activeCapitalInitialTotal
-      ),
-    [
-      globalActiveTrades,
-      activeCapitalInitialTotal,
-    ]
-  );
+        activeCapitalInitialTotal,
+      ]
+    );
 
-  const archivedGlobalStats = useMemo(
-    () =>
-      calculatePerformanceStats(
+  const archivedGlobalStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          globalArchivedTrades,
+          archivedCapitalInitialTotal
+        ),
+      [
         globalArchivedTrades,
-        archivedCapitalInitialTotal
-      ),
-    [
-      globalArchivedTrades,
-      archivedCapitalInitialTotal,
-    ]
-  );
+        archivedCapitalInitialTotal,
+      ]
+    );
 
   const periodLabel =
     period === "today"
@@ -2024,15 +2109,22 @@ function DashboardPage({
         />
 
         <MetricCard
-          title="Break-even"
+          title="BE financier"
           value={formatPercent(
             stats.breakevenRate
           )}
-          subtitle={`${stats.breakevens} trade${
+          subtitle={`${stats.breakevens} résultat${
             stats.breakevens > 1
               ? "s"
               : ""
-          }`}
+          } à 0`}
+          icon={CircleDollarSign}
+        />
+
+        <MetricCard
+          title="Sorties BE"
+          value={stats.beExits}
+          subtitle="Trades fermés en BE"
           icon={CircleDollarSign}
         />
       </div>
@@ -2235,11 +2327,21 @@ function DashboardPage({
 
           <div>
             <span>
-              Break-even
+              BE financier
             </span>
 
             <strong>
               {globalStats.breakevens}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Sorties BE
+            </span>
+
+            <strong>
+              {globalStats.beExits}
             </strong>
           </div>
 
@@ -2547,7 +2649,8 @@ function DashboardPage({
                 <th>Setup</th>
                 <th>Session</th>
                 <th>RR</th>
-                <th>Sortie</th>
+                <th>Fermeture</th>
+                <th>Résultat</th>
                 <th>P/L</th>
                 <th>R</th>
               </tr>
@@ -2558,7 +2661,7 @@ function DashboardPage({
               0 ? (
                 <tr>
                   <td
-                    colSpan="9"
+                    colSpan="10"
                     className="empty-cell"
                   >
                     Aucun trade sur
@@ -2570,6 +2673,16 @@ function DashboardPage({
                   (trade) => {
                     const pnl =
                       getTradeNetPnl(
+                        trade
+                      );
+
+                    const exitType =
+                      getTradeExitType(
+                        trade
+                      );
+
+                    const result =
+                      getTradeOutcome(
                         trade
                       );
 
@@ -2618,10 +2731,23 @@ function DashboardPage({
                           }
                         </td>
 
-                        <td>
+                        <td
+                          className={getExitClass(
+                            exitType
+                          )}
+                        >
+                          {exitType}
+                        </td>
+
+                        <td
+                          className={getOutcomeClass(
+                            result
+                          )}
+                        >
                           {
-                            trade.exitType ||
-                            "-"
+                            getTradeResultLabel(
+                              trade
+                            )
                           }
                         </td>
 
@@ -2891,11 +3017,19 @@ function DashboardPage({
           columns={[
             {
               key: "name",
-              label: "Sortie",
+              label: "Fermeture",
             },
             {
               key: "trades",
               label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "Gains",
+            },
+            {
+              key: "losses",
+              label: "Pertes",
             },
             {
               key: "pnl",
@@ -2947,7 +3081,7 @@ function DashboardPage({
           },
           {
             key: "breakevens",
-            label: "BE",
+            label: "BE financier",
           },
           {
             key: "winRate",
@@ -3006,6 +3140,11 @@ function JournalPage({
   const [
     resultFilter,
     setResultFilter,
+  ] = useState("all");
+
+  const [
+    exitTypeFilter,
+    setExitTypeFilter,
   ] = useState("all");
 
   const [
@@ -3078,6 +3217,16 @@ function JournalPage({
             }
 
             if (
+              exitTypeFilter !==
+                "all" &&
+              getTradeExitType(
+                trade
+              ) !== exitTypeFilter
+            ) {
+              return false;
+            }
+
+            if (
               sessionFilter !==
                 "all" &&
               trade.session !==
@@ -3113,6 +3262,7 @@ function JournalPage({
         assetFilter,
         directionFilter,
         resultFilter,
+        exitTypeFilter,
         sessionFilter,
         setupFilter,
         timeframeFilter,
@@ -3134,6 +3284,7 @@ function JournalPage({
     setAssetFilter("all");
     setDirectionFilter("all");
     setResultFilter("all");
+    setExitTypeFilter("all");
     setSessionFilter("all");
     setSetupFilter("all");
     setTimeframeFilter("all");
@@ -3289,7 +3440,40 @@ function JournalPage({
             </option>
 
             <option value="BE">
-              Break-even
+              BE financier
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              exitTypeFilter
+            }
+            onChange={(event) =>
+              setExitTypeFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes fermetures
+            </option>
+
+            <option value="TP">
+              Fermeture TP
+            </option>
+
+            <option value="SL">
+              Fermeture SL
+            </option>
+
+            <option value="BE">
+              Fermeture BE
             </option>
           </select>
 
@@ -3381,9 +3565,7 @@ function JournalPage({
               (timeframe) => (
                 <option
                   key={timeframe}
-                  value={
-                    timeframe
-                  }
+                  value={timeframe}
                 >
                   {timeframe}
                 </option>
@@ -3459,6 +3641,16 @@ function JournalPage({
             R
           </strong>
         </div>
+
+        <div>
+          <span>
+            Fermetures BE
+          </span>
+
+          <strong>
+            {filteredStats.beExits}
+          </strong>
+        </div>
       </div>
 
       <section className="panel">
@@ -3474,7 +3666,7 @@ function JournalPage({
                 <th>SL</th>
                 <th>TP</th>
                 <th>RR</th>
-                <th>Sortie</th>
+                <th>Fermeture</th>
                 <th>Résultat</th>
                 <th>P/L</th>
                 <th>R</th>
@@ -3500,6 +3692,11 @@ function JournalPage({
                   (trade) => {
                     const pnl =
                       getTradeNetPnl(
+                        trade
+                      );
+
+                    const exitType =
+                      getTradeExitType(
                         trade
                       );
 
@@ -3555,28 +3752,24 @@ function JournalPage({
                           {trade.rr}
                         </td>
 
-                        <td>
-                          {trade.exitPrice}
+                        <td
+                          className={getExitClass(
+                            exitType
+                          )}
+                        >
+                          {exitType}
                         </td>
 
                         <td
-                          className={
-                            outcome ===
-                            "Win"
-                              ? "positive"
-                              : outcome ===
-                                "Loss"
-                              ? "negative"
-                              : "neutral"
-                          }
+                          className={getOutcomeClass(
+                            outcome
+                          )}
                         >
-                          {outcome ===
-                          "Win"
-                            ? "Gain"
-                            : outcome ===
-                              "Loss"
-                            ? "Perte"
-                            : "BE"}
+                          {
+                            getTradeResultLabel(
+                              trade
+                            )
+                          }
                         </td>
 
                         <td
@@ -3629,6 +3822,208 @@ function JournalPage({
           </table>
         </div>
       </section>
+
+      <div className="two-column">
+        <StatsTable
+          title="Par actif"
+          rows={
+            filteredTrades.length
+              ? (() => {
+                  const map =
+                    new Map();
+
+                  filteredTrades.forEach(
+                    (trade) => {
+                      const key =
+                        trade.asset ||
+                        "Non renseigné";
+
+                      if (
+                        !map.has(key)
+                      ) {
+                        map.set(
+                          key,
+                          []
+                        );
+                      }
+
+                      map
+                        .get(key)
+                        .push(
+                          trade
+                        );
+                    }
+                  );
+
+                  return Array.from(
+                    map.entries()
+                  ).map(
+                    ([
+                      name,
+                      group,
+                    ]) => {
+                      const groupStats =
+                        calculatePerformanceStats(
+                          group,
+                          0
+                        );
+
+                      return {
+                        id: name,
+                        name,
+                        trades:
+                          groupStats.trades,
+                        wins:
+                          groupStats.wins,
+                        losses:
+                          groupStats.losses,
+                        pnl:
+                          groupStats.totalPnl,
+                        winRate:
+                          groupStats.winRate,
+                      };
+                    }
+                  );
+                })()
+              : []
+          }
+          columns={[
+            {
+              key: "name",
+              label: "Actif",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "W",
+            },
+            {
+              key: "losses",
+              label: "L",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "winRate",
+              label: "Win %",
+              render: (row) =>
+                formatPercent(
+                  row.winRate
+                ),
+            },
+          ]}
+        />
+
+        <StatsTable
+          title="Par fermeture"
+          rows={EXIT_TYPES.map(
+            (exitType) => {
+              const group =
+                filteredTrades.filter(
+                  (trade) =>
+                    getTradeExitType(
+                      trade
+                    ) ===
+                    exitType
+                );
+
+              const groupStats =
+                calculatePerformanceStats(
+                  group,
+                  0
+                );
+
+              return {
+                id: exitType,
+                name: exitType,
+                trades:
+                  groupStats.trades,
+                wins:
+                  groupStats.wins,
+                losses:
+                  groupStats.losses,
+                beFinancial:
+                  groupStats.breakevens,
+                pnl:
+                  groupStats.totalPnl,
+                avgR:
+                  groupStats.avgR,
+              };
+            }
+          )}
+          columns={[
+            {
+              key: "name",
+              label: "Fermeture",
+              render: (row) => (
+                <span
+                  className={getExitClass(
+                    row.name
+                  )}
+                >
+                  {row.name}
+                </span>
+              ),
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "Gains",
+            },
+            {
+              key: "losses",
+              label: "Pertes",
+            },
+            {
+              key: "beFinancial",
+              label: "BE financier",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "avgR",
+              label: "R moyen",
+              render: (row) =>
+                `${formatNumber(
+                  row.avgR,
+                  2
+                )}R`,
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }
@@ -3711,6 +4106,9 @@ function CalendarPage({
               wins: 0,
               losses: 0,
               breakevens: 0,
+              beExits: 0,
+              tpExits: 0,
+              slExits: 0,
               r: 0,
             });
           }
@@ -3739,6 +4137,26 @@ function CalendarPage({
             item.losses += 1;
           } else {
             item.breakevens += 1;
+          }
+
+          if (
+            isBreakEvenExit(
+              trade
+            )
+          ) {
+            item.beExits += 1;
+          } else if (
+            isTakeProfitExit(
+              trade
+            )
+          ) {
+            item.tpExits += 1;
+          } else if (
+            isStopLossExit(
+              trade
+            )
+          ) {
+            item.slExits += 1;
           }
         }
       );
@@ -3972,6 +4390,11 @@ function CalendarPage({
                           </small>
 
                           <small>
+                            {stats.beExits}{" "}
+                            BE
+                          </small>
+
+                          <small>
                             {formatNumber(
                               stats.r,
                               2
@@ -4015,7 +4438,11 @@ function CalendarPage({
           },
           {
             key: "breakevens",
-            label: "BE",
+            label: "BE financier",
+          },
+          {
+            key: "beExits",
+            label: "Sorties BE",
           },
           {
             key: "pnl",
@@ -5019,7 +5446,7 @@ function TradeModal({
 
           <div className="field">
             <label>
-              Type de sortie
+              Type de fermeture
             </label>
 
             <select
@@ -6076,14 +6503,16 @@ export default function App() {
 
     let exitPrice = 0;
 
-    if (
-      tradeForm.exitType ===
-      "TP"
-    ) {
+    const exitType =
+      String(
+        tradeForm.exitType ||
+          "BE"
+      ).toUpperCase();
+
+    if (exitType === "TP") {
       exitPrice = tp;
     } else if (
-      tradeForm.exitType ===
-      "SL"
+      exitType === "SL"
     ) {
       exitPrice = stopLoss;
     } else {
@@ -6099,7 +6528,7 @@ export default function App() {
         exitPrice <= 0
       ) {
         showNotification(
-          "Pour une sortie BE, indiquez le prix réel de sortie.",
+          "Pour une fermeture BE, indiquez le prix réel de sortie.",
           "error"
         );
         return;
@@ -6140,6 +6569,17 @@ export default function App() {
           riskMoney
         : 0;
 
+    /*
+      RESULTAT FINANCIER
+
+      Win  = P/L positif
+      Loss = P/L négatif
+      BE   = P/L nul
+
+      IMPORTANT :
+      cette valeur ne remplace JAMAIS exitType.
+    */
+
     let result = "BE";
 
     if (
@@ -6158,57 +6598,87 @@ export default function App() {
       id: createId(
         "trade"
       ),
+
       capitalId:
         tradeForm.capitalId,
+
       asset:
         tradeForm.asset,
+
       dateTime:
         tradeForm.dateTime,
+
       session:
         tradeForm.session,
+
       direction:
         tradeForm.direction,
+
       timeframe:
         tradeForm.timeframe,
+
       entry,
       stopLoss,
+
       rr:
         Number(
           tradeForm.rr
         ),
+
       tp,
       stopPips,
       pipValue,
       lot,
       riskMoney,
       riskPercent,
-      exitType:
-        tradeForm.exitType,
+
+      /*
+        FERMEURE DU TRADE
+        TP / SL / BE
+      */
+      exitType,
+
       exitPrice,
+
+      /*
+        RESULTAT FINANCIER
+        Win / Loss / BE
+      */
+      result,
+
       grossPnl,
       fees,
       swap,
       pnl: netPnl,
       resultPips,
       resultR,
-      result,
+
       setup:
         tradeForm.setup,
+
       emotion:
         tradeForm.emotion,
+
       planAdherence:
         tradeForm.planAdherence,
+
       mistakes:
         tradeForm.mistakes,
+
       entryReason:
         tradeForm.entryReason,
+
       exitReason:
         tradeForm.exitReason,
+
       notes:
         tradeForm.notes,
+
       status: "closed",
+
       createdAt:
         new Date().toISOString(),
+
       capitalRiskSnapshot:
         riskMoney,
     };
@@ -6243,7 +6713,9 @@ export default function App() {
     );
 
     showNotification(
-      `Trade enregistré : ${formatMoney(
+      `Trade enregistré : ${exitType} / ${getTradeResultLabel(
+        trade
+      )} / ${formatMoney(
         netPnl
       )}`
     );
