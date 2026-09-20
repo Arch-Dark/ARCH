@@ -31,6 +31,8 @@ import {
 const CAPITALS_STORAGE_KEY = "trading-journal-capitals";
 const TRADES_STORAGE_KEY = "trading-journal-trades";
 
+const RESULT_EPSILON = 0.000001;
+
 const ASSETS = [
   "XAUUSD",
   "USDCAD",
@@ -131,6 +133,15 @@ function getTradeTimestamp(trade) {
   return Number.isFinite(timestamp)
     ? timestamp
     : 0;
+}
+
+function isBreakEvenPnl(value) {
+  const pnl = Number(value);
+
+  return (
+    Number.isFinite(pnl) &&
+    Math.abs(pnl) <= RESULT_EPSILON
+  );
 }
 
 function getPipMultiplier(asset) {
@@ -323,14 +334,34 @@ function getCapitalRiskPercent(capital) {
 }
 
 function getResultColor(value) {
-  if (value > 0) return "#22c55e";
-  if (value < 0) return "#ef4444";
+  if (isBreakEvenPnl(value)) {
+    return "#94a3b8";
+  }
+
+  if (value > 0) {
+    return "#22c55e";
+  }
+
+  if (value < 0) {
+    return "#ef4444";
+  }
+
   return "#94a3b8";
 }
 
 function getResultClass(value) {
-  if (value > 0) return "positive";
-  if (value < 0) return "negative";
+  if (isBreakEvenPnl(value)) {
+    return "neutral";
+  }
+
+  if (value > 0) {
+    return "positive";
+  }
+
+  if (value < 0) {
+    return "negative";
+  }
+
   return "neutral";
 }
 
@@ -380,7 +411,7 @@ function getTradeNetPnl(trade) {
 
   if (
     Number.isFinite(storedPnl) &&
-    storedPnl !== 0
+    !isBreakEvenPnl(storedPnl)
   ) {
     return storedPnl;
   }
@@ -388,7 +419,7 @@ function getTradeNetPnl(trade) {
   if (
     Number.isFinite(resultR) &&
     Number.isFinite(riskMoney) &&
-    resultR !== 0 &&
+    !isBreakEvenPnl(resultR) &&
     riskMoney > 0
   ) {
     return (
@@ -436,26 +467,42 @@ function getTradeNetPnl(trade) {
       lot *
       pipValue;
 
-    return (
+    const calculatedPnl =
       calculatedGross -
       fees +
-      swap
-    );
+      swap;
+
+    return isBreakEvenPnl(
+      calculatedPnl
+    )
+      ? 0
+      : calculatedPnl;
   }
 
   if (Number.isFinite(grossPnl)) {
-    return (
+    const calculatedPnl =
       grossPnl -
       fees +
-      swap
-    );
+      swap;
+
+    return isBreakEvenPnl(
+      calculatedPnl
+    )
+      ? 0
+      : calculatedPnl;
   }
 
-  return Number.isFinite(
-    storedPnl
-  )
-    ? storedPnl
-    : 0;
+  if (
+    Number.isFinite(storedPnl)
+  ) {
+    return isBreakEvenPnl(
+      storedPnl
+    )
+      ? 0
+      : storedPnl;
+  }
+
+  return 0;
 }
 
 function getTradeDate(trade) {
@@ -602,19 +649,23 @@ function calculatePerformanceStats(
   const wins =
     closedTrades.filter(
       (trade) =>
-        getTradeNetPnl(trade) > 0
+        getTradeNetPnl(trade) >
+        RESULT_EPSILON
     );
 
   const losses =
     closedTrades.filter(
       (trade) =>
-        getTradeNetPnl(trade) < 0
+        getTradeNetPnl(trade) <
+        -RESULT_EPSILON
     );
 
   const breakevens =
     closedTrades.filter(
       (trade) =>
-        getTradeNetPnl(trade) === 0
+        isBreakEvenPnl(
+          getTradeNetPnl(trade)
+        )
     );
 
   const totalPnl =
@@ -767,7 +818,9 @@ function calculatePerformanceStats(
       const pnl =
         getTradeNetPnl(trade);
 
-      if (pnl > 0) {
+      if (
+        pnl > RESULT_EPSILON
+      ) {
         currentWinStreak += 1;
         currentLossStreak = 0;
 
@@ -776,7 +829,10 @@ function calculatePerformanceStats(
             bestStreak,
             currentWinStreak
           );
-      } else if (pnl < 0) {
+      } else if (
+        pnl <
+        -RESULT_EPSILON
+      ) {
         currentLossStreak += 1;
         currentWinStreak = 0;
 
@@ -3219,10 +3275,14 @@ function CalendarPage({
             trade
           );
 
-          if (pnl > 0) {
+          if (
+            pnl >
+            RESULT_EPSILON
+          ) {
             item.wins += 1;
           } else if (
-            pnl < 0
+            pnl <
+            -RESULT_EPSILON
           ) {
             item.losses += 1;
           } else {
@@ -5617,10 +5677,17 @@ export default function App() {
         tradeForm.swap
       ) || 0;
 
-    const netPnl =
+    const calculatedNetPnl =
       grossPnl -
       fees +
       swap;
+
+    const netPnl =
+      isBreakEvenPnl(
+        calculatedNetPnl
+      )
+        ? 0
+        : calculatedNetPnl;
 
     const resultR =
       riskMoney > 0
@@ -5666,11 +5733,13 @@ export default function App() {
       resultPips,
       resultR,
       result:
-        netPnl > 0
+        isBreakEvenPnl(
+          netPnl
+        )
+          ? "BE"
+          : netPnl > 0
           ? "Win"
-          : netPnl < 0
-          ? "Loss"
-          : "BE",
+          : "Loss",
       setup:
         tradeForm.setup,
       emotion:
