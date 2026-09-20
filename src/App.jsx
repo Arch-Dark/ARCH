@@ -141,21 +141,14 @@ function getTradeTimestamp(trade) {
     : 0;
 }
 
-/*
-  exitType = manière dont le trade a été fermé
-  ------------------------------------------------
-  TP = fermeture sur Take Profit
-  SL = fermeture sur Stop Loss
-  BE = fermeture en Break-even
+function isBreakEvenPnl(value) {
+  const pnl = Number(value);
 
-  result / outcome = résultat financier réel
-  ------------------------------------------------
-  Win  = P/L positif
-  Loss = P/L négatif
-  BE   = P/L égal à 0
-
-  Ces deux informations sont volontairement indépendantes.
-*/
+  return (
+    Number.isFinite(pnl) &&
+    Math.abs(pnl) <= RESULT_EPSILON
+  );
+}
 
 function getTradeExitType(trade) {
   const exitType = String(
@@ -197,15 +190,6 @@ function getTradeResultLabel(trade) {
   return "BE";
 }
 
-function isBreakEvenPnl(value) {
-  const pnl = Number(value);
-
-  return (
-    Number.isFinite(pnl) &&
-    Math.abs(pnl) <= RESULT_EPSILON
-  );
-}
-
 function isBreakEvenTrade(trade) {
   return getTradeOutcome(trade) === "BE";
 }
@@ -219,21 +203,15 @@ function isLosingTrade(trade) {
 }
 
 function isBreakEvenExit(trade) {
-  return (
-    getTradeExitType(trade) === "BE"
-  );
+  return getTradeExitType(trade) === "BE";
 }
 
 function isTakeProfitExit(trade) {
-  return (
-    getTradeExitType(trade) === "TP"
-  );
+  return getTradeExitType(trade) === "TP";
 }
 
 function isStopLossExit(trade) {
-  return (
-    getTradeExitType(trade) === "SL"
-  );
+  return getTradeExitType(trade) === "SL";
 }
 
 function getPipMultiplier(asset) {
@@ -1046,6 +1024,34 @@ function calculatePerformanceStats(
   };
 }
 
+function getDateTimeInputValue(value) {
+  if (!value) {
+    const now = new Date();
+
+    return new Date(
+      now.getTime() -
+        now.getTimezoneOffset() *
+          60000
+    )
+      .toISOString()
+      .slice(0, 16);
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Date(
+    date.getTime() -
+      date.getTimezoneOffset() *
+        60000
+  )
+    .toISOString()
+    .slice(0, 16);
+}
+
 function PageTitle({
   icon: Icon,
   title,
@@ -1653,9 +1659,6 @@ function DashboardPage({
       direction: makeGroup(
         "direction"
       ),
-      exitType: makeGroup(
-        "exitType"
-      ),
     };
   }, [periodTrades]);
 
@@ -1685,16 +1688,8 @@ function DashboardPage({
             groupStats.wins,
           losses:
             groupStats.losses,
-
-          /*
-            IMPORTANT :
-            Ici "BE" signifie
-            FERMETURE BE,
-            pas BE financier.
-          */
           beExits:
             groupStats.beExits,
-
           pnl:
             groupStats.totalPnl,
           winRate:
@@ -3017,43 +3012,41 @@ function DashboardPage({
 
         <StatsTable
           title="Par sortie"
-          rows={
-            EXIT_TYPES.map(
-              (exitType) => {
-                const group =
-                  periodTrades.filter(
-                    (trade) =>
-                      getTradeExitType(
-                        trade
-                      ) ===
-                      exitType
-                  );
+          rows={EXIT_TYPES.map(
+            (exitType) => {
+              const group =
+                periodTrades.filter(
+                  (trade) =>
+                    getTradeExitType(
+                      trade
+                    ) ===
+                    exitType
+                );
 
-                const groupStats =
-                  calculatePerformanceStats(
-                    group,
-                    0
-                  );
+              const groupStats =
+                calculatePerformanceStats(
+                  group,
+                  0
+                );
 
-                return {
-                  id: exitType,
-                  name: exitType,
-                  trades:
-                    groupStats.trades,
-                  wins:
-                    groupStats.wins,
-                  losses:
-                    groupStats.losses,
-                  beFinancial:
-                    groupStats.breakevens,
-                  pnl:
-                    groupStats.totalPnl,
-                  avgR:
-                    groupStats.avgR,
-                };
-              }
-            )
-          }
+              return {
+                id: exitType,
+                name: exitType,
+                trades:
+                  groupStats.trades,
+                wins:
+                  groupStats.wins,
+                losses:
+                  groupStats.losses,
+                beFinancial:
+                  groupStats.breakevens,
+                pnl:
+                  groupStats.totalPnl,
+                avgR:
+                  groupStats.avgR,
+              };
+            }
+          )}
           columns={[
             {
               key: "name",
@@ -3133,12 +3126,6 @@ function DashboardPage({
             label: "L",
           },
           {
-            /*
-              IMPORTANT :
-              Cette colonne indique le nombre
-              de trades dont la FERMETURE
-              est BE.
-            */
             key: "beExits",
             label: "BE",
           },
@@ -3176,6 +3163,925 @@ function DashboardPage({
           },
         ]}
       />
+    </div>
+  );
+}
+
+function JournalPage({
+  trades,
+  capitals,
+  filter,
+  setFilter,
+  onNew,
+  onEdit,
+  onDelete,
+}) {
+  const [assetFilter, setAssetFilter] =
+    useState("all");
+
+  const [
+    directionFilter,
+    setDirectionFilter,
+  ] = useState("all");
+
+  const [
+    resultFilter,
+    setResultFilter,
+  ] = useState("all");
+
+  const [
+    exitTypeFilter,
+    setExitTypeFilter,
+  ] = useState("all");
+
+  const [
+    sessionFilter,
+    setSessionFilter,
+  ] = useState("all");
+
+  const [
+    setupFilter,
+    setSetupFilter,
+  ] = useState("all");
+
+  const [
+    timeframeFilter,
+    setTimeframeFilter,
+  ] = useState("all");
+
+  const allClosedTrades = useMemo(
+    () =>
+      trades
+        .filter(isClosedTrade)
+        .slice()
+        .sort(
+          (a, b) =>
+            getTradeTimestamp(b) -
+            getTradeTimestamp(a)
+        ),
+    [trades]
+  );
+
+  const filteredTrades =
+    useMemo(
+      () =>
+        allClosedTrades.filter(
+          (trade) => {
+            if (
+              filter !== "all" &&
+              trade.capitalId !==
+                filter
+            ) {
+              return false;
+            }
+
+            if (
+              assetFilter !==
+                "all" &&
+              trade.asset !==
+                assetFilter
+            ) {
+              return false;
+            }
+
+            if (
+              directionFilter !==
+                "all" &&
+              trade.direction !==
+                directionFilter
+            ) {
+              return false;
+            }
+
+            if (
+              resultFilter !==
+                "all" &&
+              getTradeOutcome(
+                trade
+              ) !== resultFilter
+            ) {
+              return false;
+            }
+
+            if (
+              exitTypeFilter !==
+                "all" &&
+              getTradeExitType(
+                trade
+              ) !== exitTypeFilter
+            ) {
+              return false;
+            }
+
+            if (
+              sessionFilter !==
+                "all" &&
+              trade.session !==
+                sessionFilter
+            ) {
+              return false;
+            }
+
+            if (
+              setupFilter !==
+                "all" &&
+              trade.setup !==
+                setupFilter
+            ) {
+              return false;
+            }
+
+            if (
+              timeframeFilter !==
+                "all" &&
+              trade.timeframe !==
+                timeframeFilter
+            ) {
+              return false;
+            }
+
+            return true;
+          }
+        ),
+      [
+        allClosedTrades,
+        filter,
+        assetFilter,
+        directionFilter,
+        resultFilter,
+        exitTypeFilter,
+        sessionFilter,
+        setupFilter,
+        timeframeFilter,
+      ]
+    );
+
+  const filteredStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          filteredTrades,
+          0
+        ),
+      [filteredTrades]
+    );
+
+  function resetFilters() {
+    setFilter("all");
+    setAssetFilter("all");
+    setDirectionFilter("all");
+    setResultFilter("all");
+    setExitTypeFilter("all");
+    setSessionFilter("all");
+    setSetupFilter("all");
+    setTimeframeFilter("all");
+  }
+
+  const capitalName = (
+    id
+  ) =>
+    capitals.find(
+      (capital) =>
+        capital.id === id
+    )?.name || "Inconnu";
+
+  return (
+    <div className="page">
+      <div className="page-header-row">
+        <PageTitle
+          icon={BookOpen}
+          title="Journal"
+          subtitle="Historique complet et analyse détaillée de vos trades."
+        />
+
+        <button
+          className="primary-button"
+          onClick={onNew}
+        >
+          <Plus size={18} />
+          Nouveau trade
+        </button>
+      </div>
+
+      <div className="toolbar">
+        <div className="select-wrapper">
+          <select
+            value={filter}
+            onChange={(event) =>
+              setFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les capitaux
+            </option>
+
+            {capitals.map(
+              (capital) => (
+                <option
+                  key={
+                    capital.id
+                  }
+                  value={
+                    capital.id
+                  }
+                >
+                  {capital.name}
+                  {capital.status ===
+                  "archived"
+                    ? " — Archivé"
+                    : ""}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              assetFilter
+            }
+            onChange={(event) =>
+              setAssetFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les actifs
+            </option>
+
+            {ASSETS.map(
+              (asset) => (
+                <option
+                  key={asset}
+                  value={asset}
+                >
+                  {asset}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              directionFilter
+            }
+            onChange={(event) =>
+              setDirectionFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes directions
+            </option>
+
+            <option value="BUY">
+              BUY
+            </option>
+
+            <option value="SELL">
+              SELL
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              resultFilter
+            }
+            onChange={(event) =>
+              setResultFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les résultats
+            </option>
+
+            <option value="Win">
+              Gains
+            </option>
+
+            <option value="Loss">
+              Pertes
+            </option>
+
+            <option value="BE">
+              BE financier
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              exitTypeFilter
+            }
+            onChange={(event) =>
+              setExitTypeFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes fermetures
+            </option>
+
+            <option value="TP">
+              Fermeture TP
+            </option>
+
+            <option value="SL">
+              Fermeture SL
+            </option>
+
+            <option value="BE">
+              Fermeture BE
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              sessionFilter
+            }
+            onChange={(event) =>
+              setSessionFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes sessions
+            </option>
+
+            {SESSIONS.map(
+              (session) => (
+                <option
+                  key={session}
+                  value={session}
+                >
+                  {session}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              setupFilter
+            }
+            onChange={(event) =>
+              setSetupFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les setups
+            </option>
+
+            {SETUPS.map(
+              (setup) => (
+                <option
+                  key={setup}
+                  value={setup}
+                >
+                  {setup}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              timeframeFilter
+            }
+            onChange={(event) =>
+              setTimeframeFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les TF
+            </option>
+
+            {TIMEFRAMES.map(
+              (timeframe) => (
+                <option
+                  key={timeframe}
+                  value={timeframe}
+                >
+                  {timeframe}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <button
+          className="secondary-button"
+          onClick={resetFilters}
+        >
+          <RotateCcw
+            size={15}
+          />
+          Réinitialiser
+        </button>
+      </div>
+
+      <div className="analysis-banner">
+        <div>
+          <span>
+            Trades affichés
+          </span>
+
+          <strong>
+            {filteredStats.trades}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            P/L filtré
+          </span>
+
+          <strong
+            className={getResultClass(
+              filteredStats.totalPnl
+            )}
+          >
+            {formatMoney(
+              filteredStats.totalPnl
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Win rate
+          </span>
+
+          <strong>
+            {formatPercent(
+              filteredStats.winRate
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            R moyen
+          </span>
+
+          <strong>
+            {formatNumber(
+              filteredStats.avgR,
+              2
+            )}
+            R
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Fermetures BE
+          </span>
+
+          <strong>
+            {filteredStats.beExits}
+          </strong>
+        </div>
+      </div>
+
+      <section className="panel">
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Capital</th>
+                <th>Actif</th>
+                <th>Direction</th>
+                <th>Entrée</th>
+                <th>SL</th>
+                <th>TP</th>
+                <th>RR</th>
+                <th>Fermeture</th>
+                <th>Résultat</th>
+                <th>P/L</th>
+                <th>R</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredTrades.length ===
+              0 ? (
+                <tr>
+                  <td
+                    colSpan="13"
+                    className="empty-cell"
+                  >
+                    Aucun trade ne
+                    correspond aux
+                    filtres sélectionnés.
+                  </td>
+                </tr>
+              ) : (
+                filteredTrades.map(
+                  (trade) => {
+                    const pnl =
+                      getTradeNetPnl(
+                        trade
+                      );
+
+                    const exitType =
+                      getTradeExitType(
+                        trade
+                      );
+
+                    const outcome =
+                      getTradeOutcome(
+                        trade
+                      );
+
+                    return (
+                      <tr
+                        key={
+                          trade.id
+                        }
+                      >
+                        <td>
+                          {formatDate(
+                            trade.dateTime
+                          )}
+                        </td>
+
+                        <td>
+                          {
+                            capitalName(
+                              trade.capitalId
+                            )
+                          }
+                        </td>
+
+                        <td>
+                          {trade.asset}
+                        </td>
+
+                        <td>
+                          {trade.direction}
+                        </td>
+
+                        <td>
+                          {trade.entry}
+                        </td>
+
+                        <td>
+                          {
+                            trade.stopLoss
+                          }
+                        </td>
+
+                        <td>
+                          {trade.tp}
+                        </td>
+
+                        <td>
+                          RR
+                          {trade.rr}
+                        </td>
+
+                        <td
+                          className={getExitClass(
+                            exitType
+                          )}
+                        >
+                          {exitType}
+                        </td>
+
+                        <td
+                          className={getOutcomeClass(
+                            outcome
+                          )}
+                        >
+                          {
+                            getTradeResultLabel(
+                              trade
+                            )
+                          }
+                        </td>
+
+                        <td
+                          className={getResultClass(
+                            pnl
+                          )}
+                        >
+                          {formatMoney(
+                            pnl
+                          )}
+                        </td>
+
+                        <td
+                          className={getResultClass(
+                            getTradeR(
+                              trade
+                            )
+                          )}
+                        >
+                          {formatNumber(
+                            getTradeR(
+                              trade
+                            ),
+                            2
+                          )}
+                          R
+                        </td>
+
+                        <td>
+                          <div className="card-actions">
+                            <button
+                              className="icon-button"
+                              onClick={() =>
+                                onEdit(
+                                  trade
+                                )
+                              }
+                              title="Modifier"
+                            >
+                              <Pencil
+                                size={15}
+                              />
+                            </button>
+
+                            <button
+                              className="icon-button danger"
+                              onClick={() =>
+                                onDelete(
+                                  trade.id
+                                )
+                              }
+                              title="Supprimer"
+                            >
+                              <Trash2
+                                size={15}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="two-column">
+        <StatsTable
+          title="Par actif"
+          rows={(() => {
+            const map = new Map();
+
+            filteredTrades.forEach(
+              (trade) => {
+                const key =
+                  trade.asset ||
+                  "Non renseigné";
+
+                if (
+                  !map.has(key)
+                ) {
+                  map.set(
+                    key,
+                    []
+                  );
+                }
+
+                map
+                  .get(key)
+                  .push(
+                    trade
+                  );
+              }
+            );
+
+            return Array.from(
+              map.entries()
+            ).map(
+              ([
+                name,
+                group,
+              ]) => {
+                const groupStats =
+                  calculatePerformanceStats(
+                    group,
+                    0
+                  );
+
+                return {
+                  id: name,
+                  name,
+                  trades:
+                    groupStats.trades,
+                  wins:
+                    groupStats.wins,
+                  losses:
+                    groupStats.losses,
+                  pnl:
+                    groupStats.totalPnl,
+                  winRate:
+                    groupStats.winRate,
+                };
+              }
+            );
+          })()}
+          columns={[
+            {
+              key: "name",
+              label: "Actif",
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "W",
+            },
+            {
+              key: "losses",
+              label: "L",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "winRate",
+              label: "Win %",
+              render: (row) =>
+                formatPercent(
+                  row.winRate
+                ),
+            },
+          ]}
+        />
+
+        <StatsTable
+          title="Par fermeture"
+          rows={EXIT_TYPES.map(
+            (exitType) => {
+              const group =
+                filteredTrades.filter(
+                  (trade) =>
+                    getTradeExitType(
+                      trade
+                    ) ===
+                    exitType
+                );
+
+              const groupStats =
+                calculatePerformanceStats(
+                  group,
+                  0
+                );
+
+              return {
+                id: exitType,
+                name: exitType,
+                trades:
+                  groupStats.trades,
+                wins:
+                  groupStats.wins,
+                losses:
+                  groupStats.losses,
+                beFinancial:
+                  groupStats.breakevens,
+                pnl:
+                  groupStats.totalPnl,
+                avgR:
+                  groupStats.avgR,
+              };
+            }
+          )}
+          columns={[
+            {
+              key: "name",
+              label: "Fermeture",
+              render: (row) => (
+                <span
+                  className={getExitClass(
+                    row.name
+                  )}
+                >
+                  {row.name}
+                </span>
+              ),
+            },
+            {
+              key: "trades",
+              label: "Trades",
+            },
+            {
+              key: "wins",
+              label: "Gains",
+            },
+            {
+              key: "losses",
+              label: "Pertes",
+            },
+            {
+              key: "beFinancial",
+              label: "BE financier",
+            },
+            {
+              key: "pnl",
+              label: "P/L",
+              render: (row) => (
+                <span
+                  className={getResultClass(
+                    row.pnl
+                  )}
+                >
+                  {formatMoney(
+                    row.pnl
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "avgR",
+              label: "R moyen",
+              render: (row) =>
+                `${formatNumber(
+                  row.avgR,
+                  2
+                )}R`,
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }
@@ -4262,6 +5168,7 @@ function CapitalModal({
 
 function TradeModal({
   open,
+  editingTradeId,
   form,
   setForm,
   capitals,
@@ -4270,6 +5177,9 @@ function TradeModal({
 }) {
   if (!open) return null;
 
+  const isEditing =
+    Boolean(editingTradeId);
+
   const activeCapitals =
     capitals.filter(
       (capital) =>
@@ -4277,15 +5187,28 @@ function TradeModal({
         "archived"
     );
 
+  const availableCapitals =
+    isEditing
+      ? capitals
+      : activeCapitals;
+
   const capital =
-    activeCapitals.find(
+    availableCapitals.find(
       (item) =>
         item.id ===
         form.capitalId
     );
 
   const riskMoney =
-    getCapitalRisk(capital);
+    Number(
+      form.riskMoneyOverride
+    ) > 0
+      ? Number(
+          form.riskMoneyOverride
+        )
+      : getCapitalRisk(
+          capital
+        );
 
   const entry =
     Number(form.entry);
@@ -4337,7 +5260,9 @@ function TradeModal({
       <div className="modal large">
         <div className="modal-header">
           <h2>
-            Nouveau trade
+            {isEditing
+              ? "Modifier le trade"
+              : "Nouveau trade"}
           </h2>
 
           <button
@@ -4364,10 +5289,12 @@ function TradeModal({
                   capitalId:
                     event.target
                       .value,
+                  riskMoneyOverride:
+                    "",
                 })
               }
             >
-              {activeCapitals.map(
+              {availableCapitals.map(
                 (capitalItem) => (
                   <option
                     key={
@@ -4380,6 +5307,10 @@ function TradeModal({
                     {
                       capitalItem.name
                     }
+                    {capitalItem.status ===
+                    "archived"
+                      ? " — Archivé"
+                      : ""}
                   </option>
                 )
               )}
@@ -4888,7 +5819,10 @@ function TradeModal({
             onClick={onSave}
           >
             <Check size={17} />
-            Enregistrer le trade
+
+            {isEditing
+              ? "Enregistrer les modifications"
+              : "Enregistrer le trade"}
           </button>
         </div>
       </div>
@@ -5093,6 +6027,11 @@ export default function App() {
   ] = useState(false);
 
   const [
+    editingTradeId,
+    setEditingTradeId,
+  ] = useState(null);
+
+  const [
     tradeForm,
     setTradeForm,
   ] = useState({
@@ -5116,6 +6055,7 @@ export default function App() {
     entryReason: "",
     exitReason: "",
     notes: "",
+    riskMoneyOverride: "",
   });
 
   const [
@@ -5511,24 +6451,14 @@ export default function App() {
     const capital =
       activeCapitals[0];
 
-    const now =
-      new Date();
-
-    const localDate =
-      new Date(
-        now.getTime() -
-          now.getTimezoneOffset() *
-            60000
-      )
-        .toISOString()
-        .slice(0, 16);
+    setEditingTradeId(null);
 
     setTradeForm({
       capitalId:
         capital.id,
       asset: "XAUUSD",
       dateTime:
-        localDate,
+        getDateTimeInputValue(),
       session: "New York",
       direction: "BUY",
       timeframe: "M15",
@@ -5549,6 +6479,82 @@ export default function App() {
       entryReason: "",
       exitReason: "",
       notes: "",
+      riskMoneyOverride: "",
+    });
+
+    setTradeModalOpen(
+      true
+    );
+  }
+
+  function openEditTradeModal(
+    trade
+  ) {
+    setEditingTradeId(
+      trade.id
+    );
+
+    setTradeForm({
+      capitalId:
+        trade.capitalId || "",
+      asset:
+        trade.asset ||
+        "XAUUSD",
+      dateTime:
+        getDateTimeInputValue(
+          trade.dateTime
+        ),
+      session:
+        trade.session ||
+        "New York",
+      direction:
+        trade.direction ||
+        "BUY",
+      timeframe:
+        trade.timeframe ||
+        "M15",
+      entry:
+        trade.entry ?? "",
+      stopLoss:
+        trade.stopLoss ??
+        "",
+      rr:
+        String(
+          trade.rr ?? 2
+        ),
+      exitType:
+        getTradeExitType(
+          trade
+        ),
+      exitPrice:
+        trade.exitPrice ??
+        "",
+      fees:
+        trade.fees ?? "",
+      swap:
+        trade.swap ?? "",
+      setup:
+        trade.setup ||
+        "ZS OA",
+      emotion:
+        trade.emotion || "",
+      planAdherence:
+        trade.planAdherence ||
+        "Oui",
+      mistakes:
+        trade.mistakes || "",
+      entryReason:
+        trade.entryReason ||
+        "",
+      exitReason:
+        trade.exitReason ||
+        "",
+      notes:
+        trade.notes || "",
+      riskMoneyOverride:
+        trade.capitalRiskSnapshot ||
+        trade.riskMoney ||
+        "",
     });
 
     setTradeModalOpen(
@@ -5557,6 +6563,15 @@ export default function App() {
   }
 
   function saveTrade() {
+    const editingTrade =
+      editingTradeId
+        ? trades.find(
+            (trade) =>
+              trade.id ===
+              editingTradeId
+          )
+        : null;
+
     const capital =
       capitals.find(
         (item) =>
@@ -5614,15 +6629,45 @@ export default function App() {
       return;
     }
 
-    const riskMoney =
-      getCapitalRisk(
-        capital
+    let riskMoney;
+
+    const storedHistoricalRisk =
+      Number(
+        tradeForm.riskMoneyOverride
       );
 
+    if (
+      editingTrade &&
+      editingTrade.capitalId ===
+        capital.id &&
+      Number.isFinite(
+        storedHistoricalRisk
+      ) &&
+      storedHistoricalRisk > 0
+    ) {
+      riskMoney =
+        storedHistoricalRisk;
+    } else {
+      riskMoney =
+        getCapitalRisk(
+          capital
+        );
+    }
+
     const riskPercent =
-      getCapitalRiskPercent(
-        capital
-      );
+      capital.riskMode ===
+      "percentage"
+        ? Number(
+            capital.riskPercent
+          ) || 0
+        : capital.currentBalance >
+          0
+        ? (riskMoney /
+            Number(
+              capital.currentBalance
+            )) *
+          100
+        : 0;
 
     const pipValue =
       getPipValuePerLot(
@@ -5653,13 +6698,13 @@ export default function App() {
         tradeForm.rr
       );
 
-    let exitPrice = 0;
-
     const exitType =
       String(
         tradeForm.exitType ||
           "BE"
       ).toUpperCase();
+
+    let exitPrice = 0;
 
     if (exitType === "TP") {
       exitPrice = tp;
@@ -5735,10 +6780,12 @@ export default function App() {
       result = "Loss";
     }
 
-    const trade = {
-      id: createId(
-        "trade"
-      ),
+    const updatedTrade = {
+      ...(editingTrade || {}),
+
+      id:
+        editingTrade?.id ||
+        createId("trade"),
 
       capitalId:
         tradeForm.capitalId,
@@ -5773,18 +6820,10 @@ export default function App() {
       riskMoney,
       riskPercent,
 
-      /*
-        FERMETURE DU TRADE
-        TP / SL / BE
-      */
       exitType,
 
       exitPrice,
 
-      /*
-        RESULTAT FINANCIER
-        Win / Loss / BE
-      */
       result,
 
       grossPnl,
@@ -5818,16 +6857,114 @@ export default function App() {
       status: "closed",
 
       createdAt:
+        editingTrade?.createdAt ||
+        new Date().toISOString(),
+
+      updatedAt:
         new Date().toISOString(),
 
       capitalRiskSnapshot:
         riskMoney,
     };
 
+    if (editingTrade) {
+      const oldPnl =
+        getTradeNetPnl(
+          editingTrade
+        );
+
+      const oldCapitalId =
+        editingTrade.capitalId;
+
+      const newCapitalId =
+        updatedTrade.capitalId;
+
+      setTrades(
+        (current) =>
+          current.map(
+            (trade) =>
+              trade.id ===
+              editingTrade.id
+                ? updatedTrade
+                : trade
+          )
+      );
+
+      setCapitals(
+        (current) =>
+          current.map(
+            (item) => {
+              if (
+                oldCapitalId ===
+                  newCapitalId &&
+                item.id ===
+                  newCapitalId
+              ) {
+                return {
+                  ...item,
+                  currentBalance:
+                    (Number(
+                      item.currentBalance
+                    ) || 0) -
+                    oldPnl +
+                    netPnl,
+                };
+              }
+
+              if (
+                item.id ===
+                oldCapitalId
+              ) {
+                return {
+                  ...item,
+                  currentBalance:
+                    (Number(
+                      item.currentBalance
+                    ) || 0) -
+                    oldPnl,
+                };
+              }
+
+              if (
+                item.id ===
+                newCapitalId
+              ) {
+                return {
+                  ...item,
+                  currentBalance:
+                    (Number(
+                      item.currentBalance
+                    ) || 0) +
+                    netPnl,
+                };
+              }
+
+              return item;
+            }
+          )
+      );
+
+      setTradeModalOpen(
+        false
+      );
+
+      setEditingTradeId(null);
+
+      showNotification(
+        `Trade modifié : ${exitType} / ${getTradeResultLabel(
+          updatedTrade
+        )} / ${formatMoney(
+          netPnl
+        )}`
+      );
+
+      return;
+    }
+
     setTrades(
       (current) => [
         ...current,
-        trade,
+        updatedTrade,
       ]
     );
 
@@ -5855,7 +6992,7 @@ export default function App() {
 
     showNotification(
       `Trade enregistré : ${exitType} / ${getTradeResultLabel(
-        trade
+        updatedTrade
       )} / ${formatMoney(
         netPnl
       )}`
@@ -5957,6 +7094,9 @@ export default function App() {
             }
             onNew={
               openNewTradeModal
+            }
+            onEdit={
+              openEditTradeModal
             }
             onDelete={
               deleteTrade
@@ -6079,14 +7219,20 @@ export default function App() {
 
       <TradeModal
         open={tradeModalOpen}
+        editingTradeId={
+          editingTradeId
+        }
         form={tradeForm}
         setForm={setTradeForm}
         capitals={capitals}
-        onClose={() =>
+        onClose={() => {
           setTradeModalOpen(
             false
-          )
-        }
+          );
+          setEditingTradeId(
+            null
+          );
+        }}
         onSave={saveTrade}
       />
     </div>
