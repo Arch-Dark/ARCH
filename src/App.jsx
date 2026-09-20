@@ -144,20 +144,38 @@ function isBreakEvenPnl(value) {
   );
 }
 
+function getTradeOutcome(trade) {
+  const pnl = getTradeNetPnl(trade);
+
+  if (pnl > RESULT_EPSILON) {
+    return "Win";
+  }
+
+  if (pnl < -RESULT_EPSILON) {
+    return "Loss";
+  }
+
+  return "BE";
+}
+
 function isBreakEvenTrade(trade) {
-  if (!trade) return false;
-
-  const exitType = String(
-    trade.exitType || ""
-  ).toUpperCase();
-
-  const result = String(
-    trade.result || ""
-  ).toUpperCase();
-
   return (
-    exitType === "BE" ||
-    result === "BE"
+    getTradeOutcome(trade) ===
+    "BE"
+  );
+}
+
+function isWinningTrade(trade) {
+  return (
+    getTradeOutcome(trade) ===
+    "Win"
+  );
+}
+
+function isLosingTrade(trade) {
+  return (
+    getTradeOutcome(trade) ===
+    "Loss"
   );
 }
 
@@ -666,17 +684,13 @@ function calculatePerformanceStats(
   const wins =
     closedTrades.filter(
       (trade) =>
-        !isBreakEvenTrade(trade) &&
-        getTradeNetPnl(trade) >
-          RESULT_EPSILON
+        isWinningTrade(trade)
     );
 
   const losses =
     closedTrades.filter(
       (trade) =>
-        !isBreakEvenTrade(trade) &&
-        getTradeNetPnl(trade) <
-          -RESULT_EPSILON
+        isLosingTrade(trade)
     );
 
   const breakevens =
@@ -835,7 +849,9 @@ function calculatePerformanceStats(
       const pnl =
         getTradeNetPnl(trade);
 
-      if (isBreakEvenTrade(trade)) {
+      if (
+        isBreakEvenTrade(trade)
+      ) {
         currentWinStreak = 0;
         currentLossStreak = 0;
       } else if (
@@ -3296,17 +3312,11 @@ function CalendarPage({
           );
 
           if (
-            isBreakEvenTrade(trade)
-          ) {
-            item.breakevens += 1;
-          } else if (
-            pnl >
-            RESULT_EPSILON
+            isWinningTrade(trade)
           ) {
             item.wins += 1;
           } else if (
-            pnl <
-            -RESULT_EPSILON
+            isLosingTrade(trade)
           ) {
             item.losses += 1;
           } else {
@@ -5712,15 +5722,19 @@ export default function App() {
           riskMoney
         : 0;
 
-    const result =
-      tradeForm.exitType ===
-      "BE"
-        ? "BE"
-        : netPnl > 0
-        ? "Win"
-        : netPnl < 0
-        ? "Loss"
-        : "BE";
+    let result = "BE";
+
+    if (
+      netPnl >
+      RESULT_EPSILON
+    ) {
+      result = "Win";
+    } else if (
+      netPnl <
+      -RESULT_EPSILON
+    ) {
+      result = "Loss";
+    }
 
     const trade = {
       id: createId(
