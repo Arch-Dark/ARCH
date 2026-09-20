@@ -144,6 +144,23 @@ function isBreakEvenPnl(value) {
   );
 }
 
+function isBreakEvenTrade(trade) {
+  if (!trade) return false;
+
+  const exitType = String(
+    trade.exitType || ""
+  ).toUpperCase();
+
+  const result = String(
+    trade.result || ""
+  ).toUpperCase();
+
+  return (
+    exitType === "BE" ||
+    result === "BE"
+  );
+}
+
 function getPipMultiplier(asset) {
   if (
     asset === "XAUUSD" ||
@@ -649,23 +666,23 @@ function calculatePerformanceStats(
   const wins =
     closedTrades.filter(
       (trade) =>
+        !isBreakEvenTrade(trade) &&
         getTradeNetPnl(trade) >
-        RESULT_EPSILON
+          RESULT_EPSILON
     );
 
   const losses =
     closedTrades.filter(
       (trade) =>
+        !isBreakEvenTrade(trade) &&
         getTradeNetPnl(trade) <
-        -RESULT_EPSILON
+          -RESULT_EPSILON
     );
 
   const breakevens =
     closedTrades.filter(
       (trade) =>
-        isBreakEvenPnl(
-          getTradeNetPnl(trade)
-        )
+        isBreakEvenTrade(trade)
     );
 
   const totalPnl =
@@ -818,7 +835,10 @@ function calculatePerformanceStats(
       const pnl =
         getTradeNetPnl(trade);
 
-      if (
+      if (isBreakEvenTrade(trade)) {
+        currentWinStreak = 0;
+        currentLossStreak = 0;
+      } else if (
         pnl > RESULT_EPSILON
       ) {
         currentWinStreak += 1;
@@ -3276,6 +3296,10 @@ function CalendarPage({
           );
 
           if (
+            isBreakEvenTrade(trade)
+          ) {
+            item.breakevens += 1;
+          } else if (
             pnl >
             RESULT_EPSILON
           ) {
@@ -5677,23 +5701,26 @@ export default function App() {
         tradeForm.swap
       ) || 0;
 
-    const calculatedNetPnl =
+    const netPnl =
       grossPnl -
       fees +
       swap;
-
-    const netPnl =
-      isBreakEvenPnl(
-        calculatedNetPnl
-      )
-        ? 0
-        : calculatedNetPnl;
 
     const resultR =
       riskMoney > 0
         ? netPnl /
           riskMoney
         : 0;
+
+    const result =
+      tradeForm.exitType ===
+      "BE"
+        ? "BE"
+        : netPnl > 0
+        ? "Win"
+        : netPnl < 0
+        ? "Loss"
+        : "BE";
 
     const trade = {
       id: createId(
@@ -5732,14 +5759,7 @@ export default function App() {
       pnl: netPnl,
       resultPips,
       resultR,
-      result:
-        isBreakEvenPnl(
-          netPnl
-        )
-          ? "BE"
-          : netPnl > 0
-          ? "Win"
-          : "Loss",
+      result,
       setup:
         tradeForm.setup,
       emotion:
