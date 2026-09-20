@@ -142,8 +142,6 @@ function getTradeTimestamp(trade) {
 }
 
 /*
-  IMPORTANT :
-
   exitType = manière dont le trade a été fermé
   ------------------------------------------------
   TP = fermeture sur Take Profit
@@ -1687,8 +1685,16 @@ function DashboardPage({
             groupStats.wins,
           losses:
             groupStats.losses,
-          breakevens:
-            groupStats.breakevens,
+
+          /*
+            IMPORTANT :
+            Ici "BE" signifie
+            FERMETURE BE,
+            pas BE financier.
+          */
+          beExits:
+            groupStats.beExits,
+
           pnl:
             groupStats.totalPnl,
           winRate:
@@ -3012,961 +3018,42 @@ function DashboardPage({
         <StatsTable
           title="Par sortie"
           rows={
-            groupedStats.exitType
-          }
-          columns={[
-            {
-              key: "name",
-              label: "Fermeture",
-            },
-            {
-              key: "trades",
-              label: "Trades",
-            },
-            {
-              key: "wins",
-              label: "Gains",
-            },
-            {
-              key: "losses",
-              label: "Pertes",
-            },
-            {
-              key: "pnl",
-              label: "P/L",
-              render: (row) => (
-                <span
-                  className={getResultClass(
-                    row.pnl
-                  )}
-                >
-                  {formatMoney(
-                    row.pnl
-                  )}
-                </span>
-              ),
-            },
-            {
-              key: "avgR",
-              label: "R moyen",
-              render: (row) =>
-                `${formatNumber(
-                  row.avgR,
-                  2
-                )}R`,
-            },
-          ]}
-        />
-      </div>
-
-      <StatsTable
-        title="Analyse par RR"
-        rows={rrStats}
-        columns={[
-          {
-            key: "name",
-            label: "RR",
-          },
-          {
-            key: "trades",
-            label: "Trades",
-          },
-          {
-            key: "wins",
-            label: "W",
-          },
-          {
-            key: "losses",
-            label: "L",
-          },
-          {
-            key: "breakevens",
-            label: "BE financier",
-          },
-          {
-            key: "winRate",
-            label: "Win %",
-            render: (row) =>
-              formatPercent(
-                row.winRate
-              ),
-          },
-          {
-            key: "pnl",
-            label: "P/L",
-            render: (row) => (
-              <span
-                className={getResultClass(
-                  row.pnl
-                )}
-              >
-                {formatMoney(
-                  row.pnl
-                )}
-              </span>
-            ),
-          },
-          {
-            key: "avgR",
-            label: "R moyen",
-            render: (row) =>
-              `${formatNumber(
-                row.avgR,
-                2
-              )}R`,
-          },
-        ]}
-      />
-    </div>
-  );
-}
-
-function JournalPage({
-  trades,
-  capitals,
-  filter,
-  setFilter,
-  onNew,
-  onDelete,
-}) {
-  const [assetFilter, setAssetFilter] =
-    useState("all");
-
-  const [
-    directionFilter,
-    setDirectionFilter,
-  ] = useState("all");
-
-  const [
-    resultFilter,
-    setResultFilter,
-  ] = useState("all");
-
-  const [
-    exitTypeFilter,
-    setExitTypeFilter,
-  ] = useState("all");
-
-  const [
-    sessionFilter,
-    setSessionFilter,
-  ] = useState("all");
-
-  const [
-    setupFilter,
-    setSetupFilter,
-  ] = useState("all");
-
-  const [
-    timeframeFilter,
-    setTimeframeFilter,
-  ] = useState("all");
-
-  const allClosedTrades = useMemo(
-    () =>
-      trades
-        .filter(isClosedTrade)
-        .slice()
-        .sort(
-          (a, b) =>
-            getTradeTimestamp(b) -
-            getTradeTimestamp(a)
-        ),
-    [trades]
-  );
-
-  const filteredTrades =
-    useMemo(
-      () =>
-        allClosedTrades.filter(
-          (trade) => {
-            if (
-              filter !== "all" &&
-              trade.capitalId !==
-                filter
-            ) {
-              return false;
-            }
-
-            if (
-              assetFilter !==
-                "all" &&
-              trade.asset !==
-                assetFilter
-            ) {
-              return false;
-            }
-
-            if (
-              directionFilter !==
-                "all" &&
-              trade.direction !==
-                directionFilter
-            ) {
-              return false;
-            }
-
-            if (
-              resultFilter !==
-                "all" &&
-              getTradeOutcome(
-                trade
-              ) !== resultFilter
-            ) {
-              return false;
-            }
-
-            if (
-              exitTypeFilter !==
-                "all" &&
-              getTradeExitType(
-                trade
-              ) !== exitTypeFilter
-            ) {
-              return false;
-            }
-
-            if (
-              sessionFilter !==
-                "all" &&
-              trade.session !==
-                sessionFilter
-            ) {
-              return false;
-            }
-
-            if (
-              setupFilter !==
-                "all" &&
-              trade.setup !==
-                setupFilter
-            ) {
-              return false;
-            }
-
-            if (
-              timeframeFilter !==
-                "all" &&
-              trade.timeframe !==
-                timeframeFilter
-            ) {
-              return false;
-            }
-
-            return true;
-          }
-        ),
-      [
-        allClosedTrades,
-        filter,
-        assetFilter,
-        directionFilter,
-        resultFilter,
-        exitTypeFilter,
-        sessionFilter,
-        setupFilter,
-        timeframeFilter,
-      ]
-    );
-
-  const filteredStats =
-    useMemo(
-      () =>
-        calculatePerformanceStats(
-          filteredTrades,
-          0
-        ),
-      [filteredTrades]
-    );
-
-  function resetFilters() {
-    setFilter("all");
-    setAssetFilter("all");
-    setDirectionFilter("all");
-    setResultFilter("all");
-    setExitTypeFilter("all");
-    setSessionFilter("all");
-    setSetupFilter("all");
-    setTimeframeFilter("all");
-  }
-
-  const capitalName = (
-    id
-  ) =>
-    capitals.find(
-      (capital) =>
-        capital.id === id
-    )?.name || "Inconnu";
-
-  return (
-    <div className="page">
-      <div className="page-header-row">
-        <PageTitle
-          icon={BookOpen}
-          title="Journal"
-          subtitle="Historique complet et analyse détaillée de vos trades."
-        />
-
-        <button
-          className="primary-button"
-          onClick={onNew}
-        >
-          <Plus size={18} />
-          Nouveau trade
-        </button>
-      </div>
-
-      <div className="toolbar">
-        <div className="select-wrapper">
-          <select
-            value={filter}
-            onChange={(event) =>
-              setFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Tous les capitaux
-            </option>
-
-            {capitals.map(
-              (capital) => (
-                <option
-                  key={
-                    capital.id
-                  }
-                  value={
-                    capital.id
-                  }
-                >
-                  {capital.name}
-                  {capital.status ===
-                  "archived"
-                    ? " — Archivé"
-                    : ""}
-                </option>
-              )
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              assetFilter
-            }
-            onChange={(event) =>
-              setAssetFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Tous les actifs
-            </option>
-
-            {ASSETS.map(
-              (asset) => (
-                <option
-                  key={asset}
-                  value={asset}
-                >
-                  {asset}
-                </option>
-              )
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              directionFilter
-            }
-            onChange={(event) =>
-              setDirectionFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Toutes directions
-            </option>
-
-            <option value="BUY">
-              BUY
-            </option>
-
-            <option value="SELL">
-              SELL
-            </option>
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              resultFilter
-            }
-            onChange={(event) =>
-              setResultFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Tous les résultats
-            </option>
-
-            <option value="Win">
-              Gains
-            </option>
-
-            <option value="Loss">
-              Pertes
-            </option>
-
-            <option value="BE">
-              BE financier
-            </option>
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              exitTypeFilter
-            }
-            onChange={(event) =>
-              setExitTypeFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Toutes fermetures
-            </option>
-
-            <option value="TP">
-              Fermeture TP
-            </option>
-
-            <option value="SL">
-              Fermeture SL
-            </option>
-
-            <option value="BE">
-              Fermeture BE
-            </option>
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              sessionFilter
-            }
-            onChange={(event) =>
-              setSessionFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Toutes sessions
-            </option>
-
-            {SESSIONS.map(
-              (session) => (
-                <option
-                  key={session}
-                  value={session}
-                >
-                  {session}
-                </option>
-              )
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              setupFilter
-            }
-            onChange={(event) =>
-              setSetupFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Tous les setups
-            </option>
-
-            {SETUPS.map(
-              (setup) => (
-                <option
-                  key={setup}
-                  value={setup}
-                >
-                  {setup}
-                </option>
-              )
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <div className="select-wrapper">
-          <select
-            value={
-              timeframeFilter
-            }
-            onChange={(event) =>
-              setTimeframeFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Tous les TF
-            </option>
-
-            {TIMEFRAMES.map(
-              (timeframe) => (
-                <option
-                  key={timeframe}
-                  value={timeframe}
-                >
-                  {timeframe}
-                </option>
-              )
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-          />
-        </div>
-
-        <button
-          className="secondary-button"
-          onClick={resetFilters}
-        >
-          <RotateCcw
-            size={15}
-          />
-          Réinitialiser
-        </button>
-      </div>
-
-      <div className="analysis-banner">
-        <div>
-          <span>
-            Trades affichés
-          </span>
-
-          <strong>
-            {filteredStats.trades}
-          </strong>
-        </div>
-
-        <div>
-          <span>
-            P/L filtré
-          </span>
-
-          <strong
-            className={getResultClass(
-              filteredStats.totalPnl
-            )}
-          >
-            {formatMoney(
-              filteredStats.totalPnl
-            )}
-          </strong>
-        </div>
-
-        <div>
-          <span>
-            Win rate
-          </span>
-
-          <strong>
-            {formatPercent(
-              filteredStats.winRate
-            )}
-          </strong>
-        </div>
-
-        <div>
-          <span>
-            R moyen
-          </span>
-
-          <strong>
-            {formatNumber(
-              filteredStats.avgR,
-              2
-            )}
-            R
-          </strong>
-        </div>
-
-        <div>
-          <span>
-            Fermetures BE
-          </span>
-
-          <strong>
-            {filteredStats.beExits}
-          </strong>
-        </div>
-      </div>
-
-      <section className="panel">
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Capital</th>
-                <th>Actif</th>
-                <th>Direction</th>
-                <th>Entrée</th>
-                <th>SL</th>
-                <th>TP</th>
-                <th>RR</th>
-                <th>Fermeture</th>
-                <th>Résultat</th>
-                <th>P/L</th>
-                <th>R</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredTrades.length ===
-              0 ? (
-                <tr>
-                  <td
-                    colSpan="13"
-                    className="empty-cell"
-                  >
-                    Aucun trade ne
-                    correspond aux
-                    filtres sélectionnés.
-                  </td>
-                </tr>
-              ) : (
-                filteredTrades.map(
-                  (trade) => {
-                    const pnl =
-                      getTradeNetPnl(
-                        trade
-                      );
-
-                    const exitType =
+            EXIT_TYPES.map(
+              (exitType) => {
+                const group =
+                  periodTrades.filter(
+                    (trade) =>
                       getTradeExitType(
                         trade
-                      );
-
-                    const outcome =
-                      getTradeOutcome(
-                        trade
-                      );
-
-                    return (
-                      <tr
-                        key={
-                          trade.id
-                        }
-                      >
-                        <td>
-                          {formatDate(
-                            trade.dateTime
-                          )}
-                        </td>
-
-                        <td>
-                          {
-                            capitalName(
-                              trade.capitalId
-                            )
-                          }
-                        </td>
-
-                        <td>
-                          {trade.asset}
-                        </td>
-
-                        <td>
-                          {trade.direction}
-                        </td>
-
-                        <td>
-                          {trade.entry}
-                        </td>
-
-                        <td>
-                          {
-                            trade.stopLoss
-                          }
-                        </td>
-
-                        <td>
-                          {trade.tp}
-                        </td>
-
-                        <td>
-                          RR
-                          {trade.rr}
-                        </td>
-
-                        <td
-                          className={getExitClass(
-                            exitType
-                          )}
-                        >
-                          {exitType}
-                        </td>
-
-                        <td
-                          className={getOutcomeClass(
-                            outcome
-                          )}
-                        >
-                          {
-                            getTradeResultLabel(
-                              trade
-                            )
-                          }
-                        </td>
-
-                        <td
-                          className={getResultClass(
-                            pnl
-                          )}
-                        >
-                          {formatMoney(
-                            pnl
-                          )}
-                        </td>
-
-                        <td
-                          className={getResultClass(
-                            getTradeR(
-                              trade
-                            )
-                          )}
-                        >
-                          {formatNumber(
-                            getTradeR(
-                              trade
-                            ),
-                            2
-                          )}
-                          R
-                        </td>
-
-                        <td>
-                          <button
-                            className="icon-button danger"
-                            onClick={() =>
-                              onDelete(
-                                trade.id
-                              )
-                            }
-                            title="Supprimer"
-                          >
-                            <Trash2
-                              size={15}
-                            />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="two-column">
-        <StatsTable
-          title="Par actif"
-          rows={
-            filteredTrades.length
-              ? (() => {
-                  const map =
-                    new Map();
-
-                  filteredTrades.forEach(
-                    (trade) => {
-                      const key =
-                        trade.asset ||
-                        "Non renseigné";
-
-                      if (
-                        !map.has(key)
-                      ) {
-                        map.set(
-                          key,
-                          []
-                        );
-                      }
-
-                      map
-                        .get(key)
-                        .push(
-                          trade
-                        );
-                    }
+                      ) ===
+                      exitType
                   );
 
-                  return Array.from(
-                    map.entries()
-                  ).map(
-                    ([
-                      name,
-                      group,
-                    ]) => {
-                      const groupStats =
-                        calculatePerformanceStats(
-                          group,
-                          0
-                        );
-
-                      return {
-                        id: name,
-                        name,
-                        trades:
-                          groupStats.trades,
-                        wins:
-                          groupStats.wins,
-                        losses:
-                          groupStats.losses,
-                        pnl:
-                          groupStats.totalPnl,
-                        winRate:
-                          groupStats.winRate,
-                      };
-                    }
+                const groupStats =
+                  calculatePerformanceStats(
+                    group,
+                    0
                   );
-                })()
-              : []
+
+                return {
+                  id: exitType,
+                  name: exitType,
+                  trades:
+                    groupStats.trades,
+                  wins:
+                    groupStats.wins,
+                  losses:
+                    groupStats.losses,
+                  beFinancial:
+                    groupStats.breakevens,
+                  pnl:
+                    groupStats.totalPnl,
+                  avgR:
+                    groupStats.avgR,
+                };
+              }
+            )
           }
-          columns={[
-            {
-              key: "name",
-              label: "Actif",
-            },
-            {
-              key: "trades",
-              label: "Trades",
-            },
-            {
-              key: "wins",
-              label: "W",
-            },
-            {
-              key: "losses",
-              label: "L",
-            },
-            {
-              key: "pnl",
-              label: "P/L",
-              render: (row) => (
-                <span
-                  className={getResultClass(
-                    row.pnl
-                  )}
-                >
-                  {formatMoney(
-                    row.pnl
-                  )}
-                </span>
-              ),
-            },
-            {
-              key: "winRate",
-              label: "Win %",
-              render: (row) =>
-                formatPercent(
-                  row.winRate
-                ),
-            },
-          ]}
-        />
-
-        <StatsTable
-          title="Par fermeture"
-          rows={EXIT_TYPES.map(
-            (exitType) => {
-              const group =
-                filteredTrades.filter(
-                  (trade) =>
-                    getTradeExitType(
-                      trade
-                    ) ===
-                    exitType
-                );
-
-              const groupStats =
-                calculatePerformanceStats(
-                  group,
-                  0
-                );
-
-              return {
-                id: exitType,
-                name: exitType,
-                trades:
-                  groupStats.trades,
-                wins:
-                  groupStats.wins,
-                losses:
-                  groupStats.losses,
-                beFinancial:
-                  groupStats.breakevens,
-                pnl:
-                  groupStats.totalPnl,
-                avgR:
-                  groupStats.avgR,
-              };
-            }
-          )}
           columns={[
             {
               key: "name",
@@ -4024,6 +3111,71 @@ function JournalPage({
           ]}
         />
       </div>
+
+      <StatsTable
+        title="Analyse par RR"
+        rows={rrStats}
+        columns={[
+          {
+            key: "name",
+            label: "RR",
+          },
+          {
+            key: "trades",
+            label: "Trades",
+          },
+          {
+            key: "wins",
+            label: "W",
+          },
+          {
+            key: "losses",
+            label: "L",
+          },
+          {
+            /*
+              IMPORTANT :
+              Cette colonne indique le nombre
+              de trades dont la FERMETURE
+              est BE.
+            */
+            key: "beExits",
+            label: "BE",
+          },
+          {
+            key: "winRate",
+            label: "Win %",
+            render: (row) =>
+              formatPercent(
+                row.winRate
+              ),
+          },
+          {
+            key: "pnl",
+            label: "P/L",
+            render: (row) => (
+              <span
+                className={getResultClass(
+                  row.pnl
+                )}
+              >
+                {formatMoney(
+                  row.pnl
+                )}
+              </span>
+            ),
+          },
+          {
+            key: "avgR",
+            label: "R moyen",
+            render: (row) =>
+              `${formatNumber(
+                row.avgR,
+                2
+              )}R`,
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -6569,17 +5721,6 @@ export default function App() {
           riskMoney
         : 0;
 
-    /*
-      RESULTAT FINANCIER
-
-      Win  = P/L positif
-      Loss = P/L négatif
-      BE   = P/L nul
-
-      IMPORTANT :
-      cette valeur ne remplace JAMAIS exitType.
-    */
-
     let result = "BE";
 
     if (
@@ -6633,7 +5774,7 @@ export default function App() {
       riskPercent,
 
       /*
-        FERMEURE DU TRADE
+        FERMETURE DU TRADE
         TP / SL / BE
       */
       exitType,
