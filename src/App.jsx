@@ -1270,6 +1270,26 @@ function DashboardPage({
         selectedCapitalId
     );
 
+  const activeCapitals = useMemo(
+    () =>
+      capitals.filter(
+        (capital) =>
+          capital.status !==
+          "archived"
+      ),
+    [capitals]
+  );
+
+  const archivedCapitals = useMemo(
+    () =>
+      capitals.filter(
+        (capital) =>
+          capital.status ===
+          "archived"
+      ),
+    [capitals]
+  );
+
   const analyzedData = useMemo(() => {
     const allClosedTrades =
       trades.filter(
@@ -1291,7 +1311,7 @@ function DashboardPage({
         );
 
       const currentBalance =
-        capitals.reduce(
+        activeCapitals.reduce(
           (sum, capital) =>
             sum +
             (Number(
@@ -1306,6 +1326,8 @@ function DashboardPage({
         initialCapital,
         currentBalance,
         name: "Tous les capitaux",
+        balanceLabel:
+          "Capitaux actifs uniquement",
       };
     }
 
@@ -1316,6 +1338,8 @@ function DashboardPage({
         initialCapital: 0,
         currentBalance: 0,
         name: "Aucun capital",
+        balanceLabel:
+          "Aucun capital sélectionné",
       };
     }
 
@@ -1338,11 +1362,18 @@ function DashboardPage({
         ) || 0,
       name:
         selectedCapital.name,
+      balanceLabel:
+        selectedCapital.status ===
+        "archived"
+          ? "Capital archivé"
+          : "Capital actif",
     };
   }, [
     capitals,
     trades,
     selectedCapitalId,
+    activeCapitals,
+    selectedCapital,
   ]);
 
   const periodTrades = useMemo(
@@ -1529,6 +1560,46 @@ function DashboardPage({
       0
     );
 
+  const activeCapitalInitialTotal =
+    activeCapitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.initialCapital
+        ) || 0),
+      0
+    );
+
+  const activeCapitalBalanceTotal =
+    activeCapitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.currentBalance
+        ) || 0),
+      0
+    );
+
+  const archivedCapitalInitialTotal =
+    archivedCapitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.initialCapital
+        ) || 0),
+      0
+    );
+
+  const archivedCapitalBalanceTotal =
+    archivedCapitals.reduce(
+      (sum, capital) =>
+        sum +
+        (Number(
+          capital.currentBalance
+        ) || 0),
+      0
+    );
+
   const globalStats = useMemo(
     () =>
       calculatePerformanceStats(
@@ -1536,6 +1607,74 @@ function DashboardPage({
         capitalInitialTotal
       ),
     [trades, capitalInitialTotal]
+  );
+
+  const globalActiveTrades = useMemo(
+    () =>
+      trades.filter(
+        (trade) => {
+          const capital =
+            capitals.find(
+              (item) =>
+                item.id ===
+                trade.capitalId
+            );
+
+          return (
+            isClosedTrade(trade) &&
+            capital &&
+            capital.status !==
+              "archived"
+          );
+        }
+      ),
+    [trades, capitals]
+  );
+
+  const globalArchivedTrades = useMemo(
+    () =>
+      trades.filter(
+        (trade) => {
+          const capital =
+            capitals.find(
+              (item) =>
+                item.id ===
+                trade.capitalId
+            );
+
+          return (
+            isClosedTrade(trade) &&
+            capital &&
+            capital.status ===
+              "archived"
+          );
+        }
+      ),
+    [trades, capitals]
+  );
+
+  const activeGlobalStats = useMemo(
+    () =>
+      calculatePerformanceStats(
+        globalActiveTrades,
+        activeCapitalInitialTotal
+      ),
+    [
+      globalActiveTrades,
+      activeCapitalInitialTotal,
+    ]
+  );
+
+  const archivedGlobalStats = useMemo(
+    () =>
+      calculatePerformanceStats(
+        globalArchivedTrades,
+        archivedCapitalInitialTotal
+      ),
+    [
+      globalArchivedTrades,
+      archivedCapitalInitialTotal,
+    ]
   );
 
   const periodLabel =
@@ -1552,7 +1691,7 @@ function DashboardPage({
       ? getCapitalRisk(
           selectedCapital
         )
-      : capitals.reduce(
+      : activeCapitals.reduce(
           (sum, capital) =>
             sum +
             getCapitalRisk(
@@ -1566,9 +1705,10 @@ function DashboardPage({
       ? getCapitalRiskPercent(
           selectedCapital
         )
-      : capitalBalanceTotal > 0
+      : activeCapitalBalanceTotal >
+        0
       ? (selectedRisk /
-          capitalBalanceTotal) *
+          activeCapitalBalanceTotal) *
         100
       : 0;
 
@@ -1691,6 +1831,18 @@ function DashboardPage({
             {stats.trades}
           </strong>
         </div>
+
+        <div>
+          <span>
+            Balance actuelle
+          </span>
+
+          <strong>
+            {formatMoney(
+              analyzedData.currentBalance
+            )}
+          </strong>
+        </div>
       </div>
 
       <div className="metrics-grid">
@@ -1700,7 +1852,7 @@ function DashboardPage({
             analyzedData.currentBalance
           )}
           subtitle={
-            analyzedData.name
+            analyzedData.balanceLabel
           }
           icon={
             CircleDollarSign
@@ -1728,6 +1880,16 @@ function DashboardPage({
           )}
           subtitle={`${stats.wins} gains / ${stats.losses} pertes`}
           icon={Check}
+        />
+
+        <MetricCard
+          title="Loss rate"
+          value={formatPercent(
+            stats.lossRate
+          )}
+          subtitle={`${stats.losses} trades perdants`}
+          icon={BarChart3}
+          tone="negative"
         />
 
         <MetricCard
@@ -1770,30 +1932,16 @@ function DashboardPage({
         />
 
         <MetricCard
-          title="Meilleure série"
-          value={
-            `${stats.bestStreak} trade${
-              stats.bestStreak > 1
-                ? "s"
-                : ""
-            }`
-          }
-          subtitle="Gains consécutifs"
-          icon={Check}
-        />
-
-        <MetricCard
-          title="Pire série"
-          value={
-            `${stats.worstStreak} trade${
-              stats.worstStreak > 1
-                ? "s"
-                : ""
-            }`
-          }
-          subtitle="Pertes consécutives"
-          icon={BarChart3}
-          tone="negative"
+          title="Break-even"
+          value={formatPercent(
+            stats.breakevenRate
+          )}
+          subtitle={`${stats.breakevens} trade${
+            stats.breakevens > 1
+              ? "s"
+              : ""
+          }`}
+          icon={CircleDollarSign}
         />
       </div>
 
@@ -1863,25 +2011,355 @@ function DashboardPage({
         />
 
         <MetricCard
-          title="Break-even"
-          value={formatPercent(
-            stats.breakevenRate
-          )}
-          subtitle={`${stats.breakevens} trade${
-            stats.breakevens > 1
-              ? "s"
-              : ""
-          }`}
-          icon={CircleDollarSign}
+          title="Meilleure série"
+          value={
+            `${stats.bestStreak} trade${
+              stats.bestStreak > 1
+                ? "s"
+                : ""
+            }`
+          }
+          subtitle="Gains consécutifs"
+          icon={Check}
         />
 
         <MetricCard
-          title="Trades"
-          value={stats.trades}
-          subtitle={`${stats.wins} W · ${stats.losses} L · ${stats.breakevens} BE`}
-          icon={BookOpen}
+          title="Pire série"
+          value={
+            `${stats.worstStreak} trade${
+              stats.worstStreak > 1
+                ? "s"
+                : ""
+            }`
+          }
+          subtitle="Pertes consécutives"
+          icon={BarChart3}
+          tone="negative"
         />
       </div>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>
+              Performance globale
+            </h2>
+
+            <p>
+              Vue consolidée de tous les
+              capitaux, actifs et archivés.
+            </p>
+          </div>
+        </div>
+
+        <div className="global-grid">
+          <div>
+            <span>
+              Capital initial total
+            </span>
+
+            <strong>
+              {formatMoney(
+                capitalInitialTotal
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Balance totale
+            </span>
+
+            <strong>
+              {formatMoney(
+                capitalBalanceTotal
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              P/L total
+            </span>
+
+            <strong
+              className={getResultClass(
+                globalStats.totalPnl
+              )}
+            >
+              {formatMoney(
+                globalStats.totalPnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Rendement total
+            </span>
+
+            <strong
+              className={getResultClass(
+                globalStats.pnlPercent
+              )}
+            >
+              {formatPercent(
+                globalStats.pnlPercent
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades clôturés
+            </span>
+
+            <strong>
+              {globalStats.trades}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Win rate global
+            </span>
+
+            <strong>
+              {formatPercent(
+                globalStats.winRate
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Pertes globales
+            </span>
+
+            <strong>
+              {globalStats.losses}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Break-even
+            </span>
+
+            <strong>
+              {globalStats.breakevens}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Profit Factor
+            </span>
+
+            <strong>
+              {globalStats.profitFactor ===
+              Infinity
+                ? "∞"
+                : formatNumber(
+                    globalStats.profitFactor,
+                    2
+                  )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              R moyen
+            </span>
+
+            <strong>
+              {formatNumber(
+                globalStats.avgR,
+                2
+              )}
+              R
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Gain moyen
+            </span>
+
+            <strong
+              className="positive"
+            >
+              {formatMoney(
+                globalStats.avgWin
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Perte moyenne
+            </span>
+
+            <strong
+              className="negative"
+            >
+              {formatMoney(
+                globalStats.avgLoss
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Drawdown max.
+            </span>
+
+            <strong
+              className="negative"
+            >
+              {formatMoney(
+                globalStats.maxDrawdown
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Meilleure série
+            </span>
+
+            <strong>
+              {globalStats.bestStreak}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Pire série
+            </span>
+
+            <strong>
+              {globalStats.worstStreak}
+            </strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>
+              Répartition des capitaux
+            </h2>
+
+            <p>
+              Séparation entre les capitaux
+              actuellement actifs et les
+              capitaux archivés.
+            </p>
+          </div>
+        </div>
+
+        <div className="global-grid">
+          <div>
+            <span>
+              Capitaux actifs
+            </span>
+
+            <strong>
+              {activeCapitals.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Balance active
+            </span>
+
+            <strong>
+              {formatMoney(
+                activeCapitalBalanceTotal
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              P/L actif
+            </span>
+
+            <strong
+              className={getResultClass(
+                activeGlobalStats.totalPnl
+              )}
+            >
+              {formatMoney(
+                activeGlobalStats.totalPnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades actifs
+            </span>
+
+            <strong>
+              {activeGlobalStats.trades}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Capitaux archivés
+            </span>
+
+            <strong>
+              {archivedCapitals.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Balance archivée
+            </span>
+
+            <strong>
+              {formatMoney(
+                archivedCapitalBalanceTotal
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              P/L archivé
+            </span>
+
+            <strong
+              className={getResultClass(
+                archivedGlobalStats.totalPnl
+              )}
+            >
+              {formatMoney(
+                archivedGlobalStats.totalPnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Trades archivés
+            </span>
+
+            <strong>
+              {
+                archivedGlobalStats.trades
+              }
+            </strong>
+          </div>
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel-header">
@@ -1891,9 +2369,9 @@ function DashboardPage({
             </h2>
 
             <p>
-              Évolution du capital
-              selon les trades
-              clôturés.
+              Évolution du capital selon
+              les trades clôturés du
+              périmètre analysé.
             </p>
           </div>
         </div>
@@ -2413,103 +2891,6 @@ function DashboardPage({
           },
         ]}
       />
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>
-              Performance globale
-            </h2>
-
-            <p>
-              Cette section prend
-              toujours en compte tous
-              les capitaux, actifs et
-              archivés.
-            </p>
-          </div>
-        </div>
-
-        <div className="global-grid">
-          <div>
-            <span>
-              Capital initial total
-            </span>
-
-            <strong>
-              {formatMoney(
-                capitalInitialTotal
-              )}
-            </strong>
-          </div>
-
-          <div>
-            <span>
-              Balance totale
-            </span>
-
-            <strong>
-              {formatMoney(
-                capitalBalanceTotal
-              )}
-            </strong>
-          </div>
-
-          <div>
-            <span>
-              P/L total
-            </span>
-
-            <strong
-              className={getResultClass(
-                globalStats.totalPnl
-              )}
-            >
-              {formatMoney(
-                globalStats.totalPnl
-              )}
-            </strong>
-          </div>
-
-          <div>
-            <span>
-              Rendement total
-            </span>
-
-            <strong
-              className={getResultClass(
-                globalStats.pnlPercent
-              )}
-            >
-              {formatPercent(
-                globalStats.pnlPercent
-              )}
-            </strong>
-          </div>
-
-          <div>
-            <span>
-              Trades clôturés
-            </span>
-
-            <strong>
-              {globalStats.trades}
-            </strong>
-          </div>
-
-          <div>
-            <span>
-              Win rate global
-            </span>
-
-            <strong>
-              {formatPercent(
-                globalStats.winRate
-              )}
-            </strong>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
