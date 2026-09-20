@@ -2995,25 +2995,149 @@ function JournalPage({
   onNew,
   onDelete,
 }) {
-  const filteredTrades =
-    trades
-      .filter(isClosedTrade)
-      .filter((trade) => {
-        if (filter === "all") {
-          return true;
-        }
+  const [assetFilter, setAssetFilter] =
+    useState("all");
 
-        return (
-          trade.capitalId ===
-          filter
-        );
-      })
-      .slice()
-      .sort(
-        (a, b) =>
-          getTradeTimestamp(b) -
-          getTradeTimestamp(a)
-      );
+  const [
+    directionFilter,
+    setDirectionFilter,
+  ] = useState("all");
+
+  const [
+    resultFilter,
+    setResultFilter,
+  ] = useState("all");
+
+  const [
+    sessionFilter,
+    setSessionFilter,
+  ] = useState("all");
+
+  const [
+    setupFilter,
+    setSetupFilter,
+  ] = useState("all");
+
+  const [
+    timeframeFilter,
+    setTimeframeFilter,
+  ] = useState("all");
+
+  const allClosedTrades = useMemo(
+    () =>
+      trades
+        .filter(isClosedTrade)
+        .slice()
+        .sort(
+          (a, b) =>
+            getTradeTimestamp(b) -
+            getTradeTimestamp(a)
+        ),
+    [trades]
+  );
+
+  const filteredTrades =
+    useMemo(
+      () =>
+        allClosedTrades.filter(
+          (trade) => {
+            if (
+              filter !== "all" &&
+              trade.capitalId !==
+                filter
+            ) {
+              return false;
+            }
+
+            if (
+              assetFilter !==
+                "all" &&
+              trade.asset !==
+                assetFilter
+            ) {
+              return false;
+            }
+
+            if (
+              directionFilter !==
+                "all" &&
+              trade.direction !==
+                directionFilter
+            ) {
+              return false;
+            }
+
+            if (
+              resultFilter !==
+                "all" &&
+              getTradeOutcome(
+                trade
+              ) !== resultFilter
+            ) {
+              return false;
+            }
+
+            if (
+              sessionFilter !==
+                "all" &&
+              trade.session !==
+                sessionFilter
+            ) {
+              return false;
+            }
+
+            if (
+              setupFilter !==
+                "all" &&
+              trade.setup !==
+                setupFilter
+            ) {
+              return false;
+            }
+
+            if (
+              timeframeFilter !==
+                "all" &&
+              trade.timeframe !==
+                timeframeFilter
+            ) {
+              return false;
+            }
+
+            return true;
+          }
+        ),
+      [
+        allClosedTrades,
+        filter,
+        assetFilter,
+        directionFilter,
+        resultFilter,
+        sessionFilter,
+        setupFilter,
+        timeframeFilter,
+      ]
+    );
+
+  const filteredStats =
+    useMemo(
+      () =>
+        calculatePerformanceStats(
+          filteredTrades,
+          0
+        ),
+      [filteredTrades]
+    );
+
+  function resetFilters() {
+    setFilter("all");
+    setAssetFilter("all");
+    setDirectionFilter("all");
+    setResultFilter("all");
+    setSessionFilter("all");
+    setSetupFilter("all");
+    setTimeframeFilter("all");
+  }
 
   const capitalName = (
     id
@@ -3029,7 +3153,7 @@ function JournalPage({
         <PageTitle
           icon={BookOpen}
           title="Journal"
-          subtitle="Historique complet de vos trades."
+          subtitle="Historique complet et analyse détaillée de vos trades."
         />
 
         <button
@@ -3066,6 +3190,10 @@ function JournalPage({
                   }
                 >
                   {capital.name}
+                  {capital.status ===
+                  "archived"
+                    ? " — Archivé"
+                    : ""}
                 </option>
               )
             )}
@@ -3074,6 +3202,262 @@ function JournalPage({
           <ChevronDown
             size={16}
           />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              assetFilter
+            }
+            onChange={(event) =>
+              setAssetFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les actifs
+            </option>
+
+            {ASSETS.map(
+              (asset) => (
+                <option
+                  key={asset}
+                  value={asset}
+                >
+                  {asset}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              directionFilter
+            }
+            onChange={(event) =>
+              setDirectionFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes directions
+            </option>
+
+            <option value="BUY">
+              BUY
+            </option>
+
+            <option value="SELL">
+              SELL
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              resultFilter
+            }
+            onChange={(event) =>
+              setResultFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les résultats
+            </option>
+
+            <option value="Win">
+              Gains
+            </option>
+
+            <option value="Loss">
+              Pertes
+            </option>
+
+            <option value="BE">
+              Break-even
+            </option>
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              sessionFilter
+            }
+            onChange={(event) =>
+              setSessionFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toutes sessions
+            </option>
+
+            {SESSIONS.map(
+              (session) => (
+                <option
+                  key={session}
+                  value={session}
+                >
+                  {session}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              setupFilter
+            }
+            onChange={(event) =>
+              setSetupFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les setups
+            </option>
+
+            {SETUPS.map(
+              (setup) => (
+                <option
+                  key={setup}
+                  value={setup}
+                >
+                  {setup}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <div className="select-wrapper">
+          <select
+            value={
+              timeframeFilter
+            }
+            onChange={(event) =>
+              setTimeframeFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Tous les TF
+            </option>
+
+            {TIMEFRAMES.map(
+              (timeframe) => (
+                <option
+                  key={timeframe}
+                  value={
+                    timeframe
+                  }
+                >
+                  {timeframe}
+                </option>
+              )
+            )}
+          </select>
+
+          <ChevronDown
+            size={16}
+          />
+        </div>
+
+        <button
+          className="secondary-button"
+          onClick={resetFilters}
+        >
+          <RotateCcw
+            size={15}
+          />
+          Réinitialiser
+        </button>
+      </div>
+
+      <div className="analysis-banner">
+        <div>
+          <span>
+            Trades affichés
+          </span>
+
+          <strong>
+            {filteredStats.trades}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            P/L filtré
+          </span>
+
+          <strong
+            className={getResultClass(
+              filteredStats.totalPnl
+            )}
+          >
+            {formatMoney(
+              filteredStats.totalPnl
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            Win rate
+          </span>
+
+          <strong>
+            {formatPercent(
+              filteredStats.winRate
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            R moyen
+          </span>
+
+          <strong>
+            {formatNumber(
+              filteredStats.avgR,
+              2
+            )}
+            R
+          </strong>
         </div>
       </div>
 
@@ -3091,6 +3475,7 @@ function JournalPage({
                 <th>TP</th>
                 <th>RR</th>
                 <th>Sortie</th>
+                <th>Résultat</th>
                 <th>P/L</th>
                 <th>R</th>
                 <th></th>
@@ -3102,10 +3487,12 @@ function JournalPage({
               0 ? (
                 <tr>
                   <td
-                    colSpan="12"
+                    colSpan="13"
                     className="empty-cell"
                   >
-                    Aucun trade.
+                    Aucun trade ne
+                    correspond aux
+                    filtres sélectionnés.
                   </td>
                 </tr>
               ) : (
@@ -3113,6 +3500,11 @@ function JournalPage({
                   (trade) => {
                     const pnl =
                       getTradeNetPnl(
+                        trade
+                      );
+
+                    const outcome =
+                      getTradeOutcome(
                         trade
                       );
 
@@ -3168,6 +3560,26 @@ function JournalPage({
                         </td>
 
                         <td
+                          className={
+                            outcome ===
+                            "Win"
+                              ? "positive"
+                              : outcome ===
+                                "Loss"
+                              ? "negative"
+                              : "neutral"
+                          }
+                        >
+                          {outcome ===
+                          "Win"
+                            ? "Gain"
+                            : outcome ===
+                              "Loss"
+                            ? "Perte"
+                            : "BE"}
+                        </td>
+
+                        <td
                           className={getResultClass(
                             pnl
                           )}
@@ -3177,7 +3589,13 @@ function JournalPage({
                           )}
                         </td>
 
-                        <td>
+                        <td
+                          className={getResultClass(
+                            getTradeR(
+                              trade
+                            )
+                          )}
+                        >
                           {formatNumber(
                             getTradeR(
                               trade
