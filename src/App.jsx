@@ -7,6 +7,8 @@ import {
 
 import {
   Archive,
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   BookOpen,
   Calculator,
@@ -43,7 +45,10 @@ const CAPITALS_STORAGE_KEY =
 const TRADES_STORAGE_KEY =
   "trading-journal-trades";
 
-const BACKUP_VERSION = 1;
+const MOVEMENTS_STORAGE_KEY =
+  "trading-journal-capital-movements";
+
+const BACKUP_VERSION = 2;
 
 const RESULT_EPSILON = 0.000001;
 
@@ -119,29 +124,80 @@ function formatMoney(value) {
   }).format(number);
 }
 
-function formatNumber(value, decimals = 2) {
-  return (Number(value) || 0).toFixed(decimals);
+function formatNumber(
+  value,
+  decimals = 2
+) {
+  return (
+    Number(value) || 0
+  ).toFixed(decimals);
 }
 
-function formatPercent(value, decimals = 2) {
-  return `${(Number(value) || 0).toFixed(
-    decimals
-  )}%`;
+function formatPercent(
+  value,
+  decimals = 2
+) {
+  return `${(
+    Number(value) || 0
+  ).toFixed(decimals)}%`;
 }
 
 function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+  if (!value) {
     return "-";
   }
 
-  return date.toLocaleString("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
+
+  return date.toLocaleString(
+    "fr-FR",
+    {
+      dateStyle: "short",
+      timeStyle: "short",
+    }
+  );
+}
+
+function getDateTimeInputValue(
+  value
+) {
+  if (!value) {
+    const now = new Date();
+
+    return new Date(
+      now.getTime() -
+        now.getTimezoneOffset() *
+          60000
+    )
+      .toISOString()
+      .slice(0, 16);
+  }
+
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  return new Date(
+    date.getTime() -
+      date.getTimezoneOffset() *
+        60000
+  )
+    .toISOString()
+    .slice(0, 16);
 }
 
 function getTradeTimestamp(trade) {
@@ -150,37 +206,33 @@ function getTradeTimestamp(trade) {
     trade?.date ||
     trade?.createdAt;
 
-  const timestamp = new Date(value).getTime();
+  const timestamp = new Date(
+    value
+  ).getTime();
 
-  return Number.isFinite(timestamp)
+  return Number.isFinite(
+    timestamp
+  )
     ? timestamp
     : 0;
 }
 
-function getDateTimeInputValue(value) {
-  if (!value) {
-    const now = new Date();
+function getMovementTimestamp(
+  movement
+) {
+  const value =
+    movement?.dateTime ||
+    movement?.createdAt;
 
-    return new Date(
-      now.getTime() -
-        now.getTimezoneOffset() * 60000
-    )
-      .toISOString()
-      .slice(0, 16);
-  }
+  const timestamp = new Date(
+    value
+  ).getTime();
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Date(
-    date.getTime() -
-      date.getTimezoneOffset() * 60000
+  return Number.isFinite(
+    timestamp
   )
-    .toISOString()
-    .slice(0, 16);
+    ? timestamp
+    : 0;
 }
 
 function getPeriodBounds(
@@ -197,7 +249,9 @@ function getPeriodBounds(
     };
   }
 
-  if (periodFilter === "today") {
+  if (
+    periodFilter === "today"
+  ) {
     const start = new Date(now);
 
     start.setHours(
@@ -219,7 +273,9 @@ function getPeriodBounds(
     };
   }
 
-  if (periodFilter === "last7") {
+  if (
+    periodFilter === "last7"
+  ) {
     const start = new Date(now);
 
     start.setHours(
@@ -252,7 +308,9 @@ function getPeriodBounds(
     };
   }
 
-  if (periodFilter === "last30") {
+  if (
+    periodFilter === "last30"
+  ) {
     const start = new Date(now);
 
     start.setHours(
@@ -285,7 +343,9 @@ function getPeriodBounds(
     };
   }
 
-  if (periodFilter === "month") {
+  if (
+    periodFilter === "month"
+  ) {
     const start = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -304,7 +364,9 @@ function getPeriodBounds(
     };
   }
 
-  if (periodFilter === "custom") {
+  if (
+    periodFilter === "custom"
+  ) {
     let start = null;
     let end = null;
 
@@ -319,7 +381,11 @@ function getPeriodBounds(
         `${dateTo}T00:00:00`
       );
 
-      if (!Number.isNaN(end.getTime())) {
+      if (
+        !Number.isNaN(
+          end.getTime()
+        )
+      ) {
         end.setDate(
           end.getDate() + 1
         );
@@ -365,10 +431,13 @@ function getPipValuePerLot(
   asset,
   price
 ) {
-  const currentPrice = Number(price);
+  const currentPrice =
+    Number(price);
 
   if (
-    !Number.isFinite(currentPrice) ||
+    !Number.isFinite(
+      currentPrice
+    ) ||
     currentPrice <= 0
   ) {
     return 0;
@@ -390,14 +459,20 @@ function getPipValuePerLot(
   }
 
   if (asset === "USDJPY") {
-    return 1000 / currentPrice;
+    return (
+      1000 /
+      currentPrice
+    );
   }
 
   if (
     asset === "USDCAD" ||
     asset === "USDCHF"
   ) {
-    return 10 / currentPrice;
+    return (
+      10 /
+      currentPrice
+    );
   }
 
   return 10;
@@ -409,9 +484,13 @@ function calculatePips(
 ) {
   return (
     Math.abs(
-      Number(priceDifference) || 0
+      Number(
+        priceDifference
+      ) || 0
     ) *
-    getPipMultiplier(asset)
+    getPipMultiplier(
+      asset
+    )
   );
 }
 
@@ -430,7 +509,9 @@ function calculateDirectionalPips(
 
   return (
     difference *
-    getPipMultiplier(asset)
+    getPipMultiplier(
+      asset
+    )
   );
 }
 
@@ -454,6 +535,7 @@ function calculateTP(
 ) {
   const e = Number(entry);
   const sl = Number(stopLoss);
+
   const riskDistance =
     Math.abs(e - sl);
 
@@ -468,16 +550,20 @@ function calculateTP(
     return 0;
   }
 
-  if (direction === "BUY") {
+  if (
+    direction === "BUY"
+  ) {
     return (
       e +
-      riskDistance * ratio
+      riskDistance *
+        ratio
     );
   }
 
   return (
     e -
-    riskDistance * ratio
+    riskDistance *
+      ratio
   );
 }
 
@@ -493,7 +579,9 @@ function calculateLot(
     Number(stopPips) || 0;
 
   const pipValue =
-    Number(pipValuePerLot) || 0;
+    Number(
+      pipValuePerLot
+    ) || 0;
 
   if (
     risk <= 0 ||
@@ -594,32 +682,63 @@ function getCapitalRiskPercent(
   );
 }
 
-function isBreakEvenPnl(value) {
-  const pnl = Number(value);
+function isBreakEvenPnl(
+  value
+) {
+  const pnl =
+    Number(value);
 
   return (
-    Number.isFinite(pnl) &&
+    Number.isFinite(
+      pnl
+    ) &&
     Math.abs(pnl) <=
       RESULT_EPSILON
+  );
+}
+
+function isClosedTrade(
+  trade
+) {
+  return (
+    trade &&
+    String(
+      trade.status ||
+        "closed"
+    ).toLowerCase() ===
+      "closed"
   );
 }
 
 function getTradeExitType(
   trade
 ) {
-  const exitType = String(
-    trade?.exitType || ""
-  ).toUpperCase();
+  const exitType =
+    String(
+      trade?.exitType ||
+        ""
+    ).toUpperCase();
 
-  if (
-    EXIT_TYPES.includes(
-      exitType
-    )
-  ) {
-    return exitType;
-  }
+  return [
+    "TP",
+    "SL",
+    "BE",
+  ].includes(exitType)
+    ? exitType
+    : "BE";
+}
 
-  return "BE";
+function getTradeR(trade) {
+  const resultR =
+    Number(
+      trade?.resultR
+    );
+
+  return Number.isFinite(
+    resultR
+  )
+    ? resultR
+    : 0;
 }
 
 function getTradeNetPnl(
@@ -636,10 +755,14 @@ function getTradeNetPnl(
     Number(trade.resultR);
 
   const riskMoney =
-    Number(trade.riskMoney);
+    Number(
+      trade.riskMoney
+    );
 
   const grossPnl =
-    Number(trade.grossPnl);
+    Number(
+      trade.grossPnl
+    );
 
   const fees =
     Number(trade.fees) || 0;
@@ -688,16 +811,24 @@ function getTradeNetPnl(
     Number(trade.lot);
 
   const pipValue =
-    Number(trade.pipValue) ||
+    Number(
+      trade.pipValue
+    ) ||
     getPipValuePerLot(
       trade.asset,
       entry
     );
 
   if (
-    Number.isFinite(entry) &&
-    Number.isFinite(exit) &&
-    Number.isFinite(lot) &&
+    Number.isFinite(
+      entry
+    ) &&
+    Number.isFinite(
+      exit
+    ) &&
+    Number.isFinite(
+      lot
+    ) &&
     lot > 0 &&
     Number.isFinite(
       pipValue
@@ -746,29 +877,14 @@ function getTradeNetPnl(
       : calculatedPnl;
   }
 
-  if (
-    Number.isFinite(
-      storedPnl
-    )
-  ) {
-    return isBreakEvenPnl(
-      storedPnl
-    )
-      ? 0
-      : storedPnl;
-  }
-
-  return 0;
-}
-
-function getTradeR(trade) {
-  const resultR =
-    Number(trade?.resultR);
-
   return Number.isFinite(
-    resultR
+    storedPnl
   )
-    ? resultR
+    ? isBreakEvenPnl(
+        storedPnl
+      )
+      ? 0
+      : storedPnl
     : 0;
 }
 
@@ -860,168 +976,6 @@ function isBreakEvenExit(
   );
 }
 
-function isClosedTrade(
-  trade
-) {
-  return (
-    trade &&
-    String(
-      trade.status ||
-        "closed"
-    ).toLowerCase() ===
-      "closed"
-  );
-}
-
-function getTradeDate(
-  trade
-) {
-  const timestamp =
-    getTradeTimestamp(
-      trade
-    );
-
-  return timestamp
-    ? new Date(timestamp)
-    : null;
-}
-
-function isSameDay(
-  dateA,
-  dateB
-) {
-  if (
-    !dateA ||
-    !dateB
-  ) {
-    return false;
-  }
-
-  return (
-    dateA.getFullYear() ===
-      dateB.getFullYear() &&
-    dateA.getMonth() ===
-      dateB.getMonth() &&
-    dateA.getDate() ===
-      dateB.getDate()
-  );
-}
-
-function getStartOfWeek(
-  date
-) {
-  const result =
-    new Date(date);
-
-  const day =
-    result.getDay();
-
-  const diff =
-    day === 0
-      ? -6
-      : 1 - day;
-
-  result.setDate(
-    result.getDate() +
-      diff
-  );
-
-  result.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  return result;
-}
-
-function isSameWeek(
-  date,
-  reference
-) {
-  if (
-    !date ||
-    !reference
-  ) {
-    return false;
-  }
-
-  const start =
-    getStartOfWeek(
-      reference
-    );
-
-  const end =
-    new Date(start);
-
-  end.setDate(
-    end.getDate() + 7
-  );
-
-  return (
-    date >= start &&
-    date < end
-  );
-}
-
-function isSameMonth(
-  date,
-  reference
-) {
-  if (
-    !date ||
-    !reference
-  ) {
-    return false;
-  }
-
-  return (
-    date.getFullYear() ===
-      reference.getFullYear() &&
-    date.getMonth() ===
-      reference.getMonth()
-  );
-}
-
-function isWithinPeriod(
-  date,
-  period
-) {
-  if (!date) {
-    return false;
-  }
-
-  if (period === "all") {
-    return true;
-  }
-
-  const now = new Date();
-
-  if (period === "today") {
-    return isSameDay(
-      date,
-      now
-    );
-  }
-
-  if (period === "week") {
-    return isSameWeek(
-      date,
-      now
-    );
-  }
-
-  if (period === "month") {
-    return isSameMonth(
-      date,
-      now
-    );
-  }
-
-  return true;
-}
-
 function getResultClass(
   value
 ) {
@@ -1078,6 +1032,89 @@ function getExitClass(
   }
 
   return "neutral";
+}
+
+function getMovementAmount(
+  movement
+) {
+  const amount =
+    Number(
+      movement?.amount
+    ) || 0;
+
+  if (
+    movement?.type ===
+    "withdrawal"
+  ) {
+    return -Math.abs(
+      amount
+    );
+  }
+
+  return Math.abs(amount);
+}
+
+function getMovementLabel(
+  movement
+) {
+  return movement?.type ===
+    "withdrawal"
+    ? "Retrait"
+    : "Dépôt";
+}
+
+function calculateCapitalMovementsStats(
+  movements
+) {
+  const deposits =
+    movements.filter(
+      (movement) =>
+        movement.type ===
+        "deposit"
+    );
+
+  const withdrawals =
+    movements.filter(
+      (movement) =>
+        movement.type ===
+        "withdrawal"
+    );
+
+  const depositsTotal =
+    deposits.reduce(
+      (sum, movement) =>
+        sum +
+        Math.abs(
+          Number(
+            movement.amount
+          ) || 0
+        ),
+      0
+    );
+
+  const withdrawalsTotal =
+    withdrawals.reduce(
+      (sum, movement) =>
+        sum +
+        Math.abs(
+          Number(
+            movement.amount
+          ) || 0
+        ),
+      0
+    );
+
+  return {
+    deposits:
+      deposits.length,
+    withdrawals:
+      withdrawals.length,
+    depositsTotal,
+    withdrawalsTotal,
+    net:
+      depositsTotal -
+      withdrawalsTotal,
+  };
 }
 
 function calculatePerformanceStats(
@@ -1240,7 +1277,8 @@ function calculatePerformanceStats(
 
       const drawdownPercent =
         peak > 0
-          ? (drawdown / peak) *
+          ? (drawdown /
+              peak) *
             100
           : 0;
 
@@ -1408,6 +1446,155 @@ function calculatePerformanceStats(
   };
 }
 
+function getTradeDate(
+  trade
+) {
+  const timestamp =
+    getTradeTimestamp(
+      trade
+    );
+
+  return timestamp
+    ? new Date(timestamp)
+    : null;
+}
+
+function isSameDay(
+  dateA,
+  dateB
+) {
+  if (
+    !dateA ||
+    !dateB
+  ) {
+    return false;
+  }
+
+  return (
+    dateA.getFullYear() ===
+      dateB.getFullYear() &&
+    dateA.getMonth() ===
+      dateB.getMonth() &&
+    dateA.getDate() ===
+      dateB.getDate()
+  );
+}
+
+function getStartOfWeek(
+  date
+) {
+  const result =
+    new Date(date);
+
+  const day =
+    result.getDay();
+
+  const diff =
+    day === 0
+      ? -6
+      : 1 - day;
+
+  result.setDate(
+    result.getDate() +
+      diff
+  );
+
+  result.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  return result;
+}
+
+function isSameWeek(
+  date,
+  reference
+) {
+  if (
+    !date ||
+    !reference
+  ) {
+    return false;
+  }
+
+  const start =
+    getStartOfWeek(
+      reference
+    );
+
+  const end =
+    new Date(start);
+
+  end.setDate(
+    end.getDate() + 7
+  );
+
+  return (
+    date >= start &&
+    date < end
+  );
+}
+
+function isSameMonth(
+  date,
+  reference
+) {
+  if (
+    !date ||
+    !reference
+  ) {
+    return false;
+  }
+
+  return (
+    date.getFullYear() ===
+      reference.getFullYear() &&
+    date.getMonth() ===
+      reference.getMonth()
+  );
+}
+
+function isWithinPeriod(
+  date,
+  period
+) {
+  if (!date) {
+    return false;
+  }
+
+  if (period === "all") {
+    return true;
+  }
+
+  const now = new Date();
+
+  if (period === "today") {
+    return isSameDay(
+      date,
+      now
+    );
+  }
+
+  if (period === "week") {
+    return isSameWeek(
+      date,
+      now
+    );
+  }
+
+  if (period === "month") {
+    return isSameMonth(
+      date,
+      now
+    );
+  }
+
+  return true;
+}
+
 function PageTitle({
   icon: Icon,
   title,
@@ -1452,7 +1639,9 @@ function MetricCard({
       <strong>{value}</strong>
 
       {subtitle && (
-        <small>{subtitle}</small>
+        <small>
+          {subtitle}
+        </small>
       )}
     </div>
   );
@@ -1548,6 +1737,7 @@ function StatsTable({
 function DashboardPage({
   capitals,
   trades,
+  movements,
   selectedCapitalId,
   setSelectedCapitalId,
 }) {
@@ -1572,7 +1762,7 @@ function DashboardPage({
         selectedCapitalId ===
         "all"
       ) {
-        const activeCapital =
+        const activeCapitals =
           capitals.filter(
             (capital) =>
               capital.status !==
@@ -1580,7 +1770,7 @@ function DashboardPage({
           );
 
         const initialCapital =
-          activeCapital.reduce(
+          activeCapitals.reduce(
             (sum, capital) =>
               sum +
               (Number(
@@ -1590,7 +1780,7 @@ function DashboardPage({
           );
 
         const currentBalance =
-          activeCapital.reduce(
+          activeCapitals.reduce(
             (sum, capital) =>
               sum +
               (Number(
@@ -1599,10 +1789,36 @@ function DashboardPage({
             0
           );
 
+        const capitalIds =
+          new Set(
+            activeCapitals.map(
+              (capital) =>
+                capital.id
+            )
+          );
+
+        const filteredTrades =
+          allClosedTrades.filter(
+            (trade) =>
+              capitalIds.has(
+                trade.capitalId
+              )
+          );
+
+        const filteredMovements =
+          movements.filter(
+            (movement) =>
+              capitalIds.has(
+                movement.capitalId
+              )
+          );
+
         return {
           capital: null,
           trades:
-            allClosedTrades,
+            filteredTrades,
+          movements:
+            filteredMovements,
           initialCapital,
           currentBalance,
           name:
@@ -1614,6 +1830,7 @@ function DashboardPage({
         return {
           capital: null,
           trades: [],
+          movements: [],
           initialCapital: 0,
           currentBalance: 0,
           name:
@@ -1624,27 +1841,40 @@ function DashboardPage({
       return {
         capital:
           selectedCapital,
+
         trades:
           allClosedTrades.filter(
             (trade) =>
               trade.capitalId ===
               selectedCapital.id
           ),
+
+        movements:
+          movements.filter(
+            (movement) =>
+              movement.capitalId ===
+              selectedCapital.id
+          ),
+
         initialCapital:
           Number(
             selectedCapital.initialCapital
           ) || 0,
+
         currentBalance:
           Number(
             selectedCapital.currentBalance
           ) || 0,
+
         name:
           selectedCapital.name,
       };
     }, [
       capitals,
       trades,
+      movements,
       selectedCapitalId,
+      selectedCapital,
     ]);
 
   const periodTrades =
@@ -1687,6 +1917,17 @@ function DashboardPage({
       [
         analyzedData.trades,
         analyzedData.initialCapital,
+      ]
+    );
+
+  const movementStats =
+    useMemo(
+      () =>
+        calculateCapitalMovementsStats(
+          analyzedData.movements
+        ),
+      [
+        analyzedData.movements,
       ]
     );
 
@@ -1754,22 +1995,27 @@ function DashboardPage({
           makeGroup(
             "asset"
           ),
+
         setup:
           makeGroup(
             "setup"
           ),
+
         session:
           makeGroup(
             "session"
           ),
+
         timeframe:
           makeGroup(
             "timeframe"
           ),
+
         direction:
           makeGroup(
             "direction"
           ),
+
         exitType:
           makeGroup(
             "exitType"
@@ -1879,6 +2125,15 @@ function DashboardPage({
       ]
     );
 
+  const globalMovementStats =
+    useMemo(
+      () =>
+        calculateCapitalMovementsStats(
+          movements
+        ),
+      [movements]
+    );
+
   const periodLabel =
     period === "today"
       ? "Aujourd'hui"
@@ -1943,7 +2198,8 @@ function DashboardPage({
               }
               onChange={(event) =>
                 setSelectedCapitalId(
-                  event.target.value
+                  event.target
+                    .value
                 )
               }
             >
@@ -2062,7 +2318,7 @@ function DashboardPage({
         />
 
         <MetricCard
-          title="P/L"
+          title="P/L trading"
           value={formatMoney(
             stats.totalPnl
           )}
@@ -2124,28 +2380,28 @@ function DashboardPage({
         />
 
         <MetricCard
-          title="Meilleure série"
-          value={`${stats.bestStreak} trade${
-            stats.bestStreak >
-            1
-              ? "s"
-              : ""
-          }`}
-          subtitle="Gains consécutifs"
-          icon={Check}
+          title="Mouvements nets"
+          value={formatMoney(
+            movementStats.net
+          )}
+          subtitle={`${movementStats.deposits} dépôts · ${movementStats.withdrawals} retraits`}
+          icon={WalletCards}
+          tone={getResultClass(
+            movementStats.net
+          )}
         />
 
         <MetricCard
-          title="Pire série"
-          value={`${stats.worstStreak} trade${
-            stats.worstStreak >
-            1
-              ? "s"
-              : ""
-          }`}
-          subtitle="Pertes consécutives"
-          icon={BarChart3}
-          tone="negative"
+          title="Risque / trade"
+          value={formatMoney(
+            selectedRisk
+          )}
+          subtitle={`≈ ${formatPercent(
+            selectedRiskPercent
+          )} du capital`}
+          icon={
+            CircleDollarSign
+          }
         />
       </div>
 
@@ -2181,19 +2437,6 @@ function DashboardPage({
           tone={getResultClass(
             lifetimeStats.pnlMonth
           )}
-        />
-
-        <MetricCard
-          title="Risque / trade"
-          value={formatMoney(
-            selectedRisk
-          )}
-          subtitle={`≈ ${formatPercent(
-            selectedRiskPercent
-          )} du capital`}
-          icon={
-            CircleDollarSign
-          }
         />
 
         <MetricCard
@@ -2244,6 +2487,18 @@ function DashboardPage({
             RotateCcw
           }
         />
+
+        <MetricCard
+          title="Meilleure série"
+          value={`${stats.bestStreak} trade${
+            stats.bestStreak >
+            1
+              ? "s"
+              : ""
+          }`}
+          subtitle="Gains consécutifs"
+          icon={Check}
+        />
       </div>
 
       <section className="panel">
@@ -2254,9 +2509,10 @@ function DashboardPage({
             </h2>
 
             <p>
-              Évolution du capital
-              selon les trades
-              clôturés.
+              Évolution de la performance
+              de trading. Les dépôts et
+              retraits ne sont pas interprétés
+              comme des trades.
             </p>
           </div>
         </div>
@@ -2367,11 +2623,6 @@ function DashboardPage({
                         trade
                       );
 
-                    const outcome =
-                      getTradeOutcome(
-                        trade
-                      );
-
                     return (
                       <tr
                         key={
@@ -2433,7 +2684,9 @@ function DashboardPage({
 
                         <td
                           className={getOutcomeClass(
-                            outcome
+                            getTradeOutcome(
+                              trade
+                            )
                           )}
                         >
                           {
@@ -2838,9 +3091,9 @@ function DashboardPage({
             </h2>
 
             <p>
-              Cette section prend
-              toujours en compte tous
-              les capitaux, actifs et
+              Les métriques de trading
+              prennent en compte tous
+              les trades, actifs et
               archivés.
             </p>
           </div>
@@ -2873,7 +3126,7 @@ function DashboardPage({
 
           <div>
             <span>
-              P/L total
+              P/L trading total
             </span>
 
             <strong
@@ -2889,7 +3142,23 @@ function DashboardPage({
 
           <div>
             <span>
-              Rendement total
+              Mouvements nets
+            </span>
+
+            <strong
+              className={getResultClass(
+                globalMovementStats.net
+              )}
+            >
+              {formatMoney(
+                globalMovementStats.net
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Rendement trading
             </span>
 
             <strong
@@ -2965,7 +3234,9 @@ function JournalPage({
   const [
     sortBy,
     setSortBy,
-  ] = useState("newest");
+  ] = useState(
+    "newest"
+  );
 
   const [
     assetFilter,
@@ -3195,6 +3466,7 @@ function JournalPage({
             getTradeNetPnl(
               a
             );
+
           const pnlB =
             getTradeNetPnl(
               b
@@ -3202,6 +3474,7 @@ function JournalPage({
 
           const rA =
             getTradeR(a);
+
           const rB =
             getTradeR(b);
 
@@ -3314,20 +3587,30 @@ function JournalPage({
   function resetFilters() {
     setFilter("all");
     setSearchTerm("");
-    setPeriodFilter("all");
+    setPeriodFilter(
+      "all"
+    );
     setDateFrom("");
     setDateTo("");
     setSortBy("newest");
-    setAssetFilter("all");
+    setAssetFilter(
+      "all"
+    );
     setDirectionFilter(
       "all"
     );
-    setResultFilter("all");
+    setResultFilter(
+      "all"
+    );
     setExitTypeFilter(
       "all"
     );
-    setSessionFilter("all");
-    setSetupFilter("all");
+    setSessionFilter(
+      "all"
+    );
+    setSetupFilter(
+      "all"
+    );
     setTimeframeFilter(
       "all"
     );
@@ -3363,9 +3646,7 @@ function JournalPage({
               value={
                 searchTerm
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setSearchTerm(
                   event.target
                     .value
@@ -3382,9 +3663,7 @@ function JournalPage({
 
             <select
               value={filter}
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setFilter(
                   event.target
                     .value
@@ -3423,9 +3702,7 @@ function JournalPage({
               value={
                 periodFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setPeriodFilter(
                   event.target
                     .value
@@ -3471,9 +3748,7 @@ function JournalPage({
                   value={
                     dateFrom
                   }
-                  onChange={(
-                    event
-                  ) =>
+                  onChange={(event) =>
                     setDateFrom(
                       event.target
                         .value
@@ -3492,9 +3767,7 @@ function JournalPage({
                   value={
                     dateTo
                   }
-                  onChange={(
-                    event
-                  ) =>
+                  onChange={(event) =>
                     setDateTo(
                       event.target
                         .value
@@ -3514,9 +3787,7 @@ function JournalPage({
               value={
                 assetFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setAssetFilter(
                   event.target
                     .value
@@ -3549,9 +3820,7 @@ function JournalPage({
               value={
                 directionFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setDirectionFilter(
                   event.target
                     .value
@@ -3581,9 +3850,7 @@ function JournalPage({
               value={
                 resultFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setResultFilter(
                   event.target
                     .value
@@ -3617,9 +3884,7 @@ function JournalPage({
               value={
                 exitTypeFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setExitTypeFilter(
                   event.target
                     .value
@@ -3652,9 +3917,7 @@ function JournalPage({
               value={
                 sessionFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setSessionFilter(
                   event.target
                     .value
@@ -3687,9 +3950,7 @@ function JournalPage({
               value={
                 setupFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setSetupFilter(
                   event.target
                     .value
@@ -3722,9 +3983,7 @@ function JournalPage({
               value={
                 timeframeFilter
               }
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setTimeframeFilter(
                   event.target
                     .value
@@ -3738,7 +3997,9 @@ function JournalPage({
               {TIMEFRAMES.map(
                 (timeframe) => (
                   <option
-                    key={timeframe}
+                    key={
+                      timeframe
+                    }
                     value={
                       timeframe
                     }
@@ -3757,9 +4018,7 @@ function JournalPage({
 
             <select
               value={sortBy}
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setSortBy(
                   event.target
                     .value
@@ -3803,7 +4062,10 @@ function JournalPage({
 
         <div className="modal-actions">
           <span>
-            {filteredTrades.length} trade
+            {
+              filteredTrades.length
+            }{" "}
+            trade
             {filteredTrades.length >
             1
               ? "s"
@@ -4548,11 +4810,15 @@ function TradeDetailModal({
 function CapitalPage({
   capitals,
   trades,
+  movements,
   onNew,
   onEdit,
   onArchive,
   onRestore,
   onDelete,
+  onNewMovement,
+  onEditMovement,
+  onDeleteMovement,
 }) {
   const active =
     capitals.filter(
@@ -4568,6 +4834,19 @@ function CapitalPage({
         "archived"
     );
 
+  const sortedMovements =
+    movements
+      .slice()
+      .sort(
+        (a, b) =>
+          getMovementTimestamp(
+            b
+          ) -
+          getMovementTimestamp(
+            a
+          )
+      );
+
   function renderCapital(
     capital
   ) {
@@ -4575,6 +4854,13 @@ function CapitalPage({
       trades.filter(
         (trade) =>
           trade.capitalId ===
+          capital.id
+      );
+
+    const linkedMovements =
+      movements.filter(
+        (movement) =>
+          movement.capitalId ===
           capital.id
       );
 
@@ -4586,6 +4872,11 @@ function CapitalPage({
             trade
           ),
         0
+      );
+
+    const movementStats =
+      calculateCapitalMovementsStats(
+        linkedMovements
       );
 
     return (
@@ -4690,25 +4981,53 @@ function CapitalPage({
               }
             </strong>
           </div>
-        </div>
 
-        <div className="capital-pnl">
-          <span>
-            P/L
-          </span>
+          <div>
+            <span>
+              P/L trading
+            </span>
 
-          <strong
-            className={getResultClass(
-              pnl
-            )}
-          >
-            {formatMoney(
-              pnl
-            )}
-          </strong>
+            <strong
+              className={getResultClass(
+                pnl
+              )}
+            >
+              {formatMoney(
+                pnl
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Mouvements nets
+            </span>
+
+            <strong
+              className={getResultClass(
+                movementStats.net
+              )}
+            >
+              {formatMoney(
+                movementStats.net
+              )}
+            </strong>
+          </div>
         </div>
 
         <div className="capital-actions">
+          <button
+            className="primary-button"
+            onClick={() =>
+              onNewMovement(
+                capital
+              )
+            }
+          >
+            <Plus size={15} />
+            Mouvement
+          </button>
+
           {capital.status ===
           "archived" ? (
             <button
@@ -4762,7 +5081,7 @@ function CapitalPage({
         <PageTitle
           icon={WalletCards}
           title="Capitaux"
-          subtitle="Gérez vos capitaux actifs et archivés."
+          subtitle="Gérez vos capitaux, dépôts et retraits."
         />
 
         <button
@@ -4823,6 +5142,135 @@ function CapitalPage({
           )}
         </div>
       </section>
+
+      <StatsTable
+        title="Historique des mouvements de capital"
+        rows={sortedMovements}
+        columns={[
+          {
+            key: "dateTime",
+            label: "Date",
+            render: (
+              row
+            ) =>
+              formatDate(
+                row.dateTime
+              ),
+          },
+          {
+            key: "capitalId",
+            label: "Capital",
+            render: (
+              row
+            ) =>
+              capitals.find(
+                (capital) =>
+                  capital.id ===
+                  row.capitalId
+              )?.name ||
+              "Inconnu",
+          },
+          {
+            key: "type",
+            label: "Type",
+            render: (
+              row
+            ) => (
+              <span
+                className={
+                  row.type ===
+                  "deposit"
+                    ? "positive"
+                    : "negative"
+                }
+              >
+                {getMovementLabel(
+                  row
+                )}
+              </span>
+            ),
+          },
+          {
+            key: "amount",
+            label: "Montant",
+            render: (
+              row
+            ) => {
+              const amount =
+                Math.abs(
+                  Number(
+                    row.amount
+                  ) || 0
+                );
+
+              return (
+                <span
+                  className={
+                    row.type ===
+                    "deposit"
+                      ? "positive"
+                      : "negative"
+                  }
+                >
+                  {row.type ===
+                  "deposit"
+                    ? "+"
+                    : "-"}
+                  {formatMoney(
+                    amount
+                  )}
+                </span>
+              );
+            },
+          },
+          {
+            key: "note",
+            label: "Note",
+            render: (
+              row
+            ) =>
+              row.note ||
+              "-",
+          },
+          {
+            key: "actions",
+            label: "",
+            render: (
+              row
+            ) => (
+              <div className="card-actions">
+                <button
+                  className="icon-button"
+                  onClick={() =>
+                    onEditMovement(
+                      row
+                    )
+                  }
+                  title="Modifier"
+                >
+                  <Pencil
+                    size={15}
+                  />
+                </button>
+
+                <button
+                  className="icon-button danger"
+                  onClick={() =>
+                    onDeleteMovement(
+                      row.id
+                    )
+                  }
+                  title="Supprimer"
+                >
+                  <Trash2
+                    size={15}
+                  />
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
@@ -4934,19 +5382,25 @@ function CalendarPage({
             );
 
           item.pnl += pnl;
-          item.trades += 1;
+
+          item.trades +=
+            1;
 
           item.r +=
             getTradeR(
               trade
             );
 
-          if (pnl > 0) {
-            item.wins += 1;
+          if (
+            pnl > 0
+          ) {
+            item.wins +=
+              1;
           } else if (
             pnl < 0
           ) {
-            item.losses += 1;
+            item.losses +=
+              1;
           } else {
             item.breakevens +=
               1;
@@ -4957,7 +5411,8 @@ function CalendarPage({
               trade
             )
           ) {
-            item.beExits += 1;
+            item.beExits +=
+              1;
           }
         }
       );
@@ -5343,6 +5798,7 @@ function CalculatorPage({
       setCapitalId(
         activeCapitals[0].id
       );
+
       setRr(
         String(
           activeCapitals[0]
@@ -5744,15 +6200,11 @@ function CalculatorPage({
 function SettingsPage({
   capitals,
   trades,
+  movements,
   onExport,
   fileInputRef,
   onImportFile,
 }) {
-  const closedTrades =
-    trades.filter(
-      isClosedTrade
-    );
-
   return (
     <div className="page">
       <PageTitle
@@ -5789,11 +6241,25 @@ function SettingsPage({
 
           <div>
             <span>
+              Mouvements
+            </span>
+
+            <strong>
+              {movements.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
               Trades clôturés
             </span>
 
             <strong>
-              {closedTrades.length}
+              {
+                trades.filter(
+                  isClosedTrade
+                ).length
+              }
             </strong>
           </div>
         </div>
@@ -5802,10 +6268,7 @@ function SettingsPage({
           Les données sont
           actuellement stockées
           localement dans le
-          navigateur. Utilisez une
-          sauvegarde JSON pour
-          conserver ou transférer
-          votre journal.
+          navigateur.
         </p>
       </section>
 
@@ -5817,8 +6280,8 @@ function SettingsPage({
             </h2>
 
             <p>
-              Exportez tous vos
-              capitaux et trades dans
+              Exportez vos capitaux,
+              trades et mouvements dans
               un fichier JSON.
             </p>
           </div>
@@ -5862,9 +6325,7 @@ function SettingsPage({
 
         <p className="settings-note">
           L'import remplacera les
-          données actuellement
-          présentes dans ce
-          navigateur après
+          données actuelles après
           confirmation.
         </p>
       </section>
@@ -5873,11 +6334,12 @@ function SettingsPage({
         <div className="panel-header">
           <div>
             <h2>
-              Format de sauvegarde
+              Structure des données
             </h2>
 
             <p>
-              Version actuelle :{" "}
+              Version de sauvegarde :
+              {" "}
               {BACKUP_VERSION}
             </p>
           </div>
@@ -5886,7 +6348,7 @@ function SettingsPage({
         <div className="settings-info">
           <div>
             <span>
-              Capitaux exportés
+              Capitaux
             </span>
 
             <strong>
@@ -5896,11 +6358,21 @@ function SettingsPage({
 
           <div>
             <span>
-              Trades exportés
+              Trades
             </span>
 
             <strong>
               {trades.length}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Mouvements
+            </span>
+
+            <strong>
+              {movements.length}
             </strong>
           </div>
         </div>
@@ -6098,21 +6570,277 @@ function CapitalModal({
               {RR_OPTIONS.map(
                 (value) => (
                   <option
-                    key={
-                      value
-                    }
-                    value={
-                      value
-                    }
+                    key={value}
+                    value={value}
                   >
-                    RR
-                    {value}
+                    RR{value}
                   </option>
                 )
               )}
             </select>
           </div>
         </div>
+
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            onClick={onClose}
+          >
+            Annuler
+          </button>
+
+          <button
+            className="primary-button"
+            onClick={onSave}
+          >
+            <Check size={17} />
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MovementModal({
+  open,
+  editingMovementId,
+  form,
+  setForm,
+  capitals,
+  onClose,
+  onSave,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  const capital =
+    capitals.find(
+      (item) =>
+        item.id ===
+        form.capitalId
+    );
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-header">
+          <div>
+            <h2>
+              {editingMovementId
+                ? "Modifier le mouvement"
+                : "Nouveau mouvement"}
+            </h2>
+
+            <p>
+              Dépôt et retrait
+              n'affectent pas le P/L
+              trading.
+            </p>
+          </div>
+
+          <button
+            className="icon-button"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="form-grid">
+          <div className="field">
+            <label>
+              Capital
+            </label>
+
+            <select
+              value={
+                form.capitalId
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  capitalId:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              {capitals.map(
+                (capitalItem) => (
+                  <option
+                    key={
+                      capitalItem.id
+                    }
+                    value={
+                      capitalItem.id
+                    }
+                  >
+                    {
+                      capitalItem.name
+                    }
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Type
+            </label>
+
+            <select
+              value={
+                form.type
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  type:
+                    event.target
+                      .value,
+                })
+              }
+            >
+              <option value="deposit">
+                Dépôt
+              </option>
+
+              <option value="withdrawal">
+                Retrait
+              </option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>
+              Montant
+            </label>
+
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={
+                form.amount
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  amount:
+                    event.target
+                      .value,
+                })
+              }
+              placeholder="500"
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Date et heure
+            </label>
+
+            <input
+              type="datetime-local"
+              value={
+                form.dateTime
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  dateTime:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field full">
+            <label>
+              Note
+            </label>
+
+            <textarea
+              value={
+                form.note
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  note:
+                    event.target
+                      .value,
+                })
+              }
+              placeholder="Dépôt sur compte, retrait personnel, transfert..."
+            />
+          </div>
+        </div>
+
+        {capital && (
+          <div className="trade-preview">
+            <div>
+              <span>
+                Balance actuelle
+              </span>
+
+              <strong>
+                {formatMoney(
+                  capital.currentBalance
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Mouvement
+              </span>
+
+              <strong
+                className={
+                  form.type ===
+                  "deposit"
+                    ? "positive"
+                    : "negative"
+                }
+              >
+                {form.type ===
+                "deposit"
+                  ? "+"
+                  : "-"}
+                {formatMoney(
+                  form.amount
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Balance après
+              </span>
+
+              <strong>
+                {formatMoney(
+                  (Number(
+                    capital.currentBalance
+                  ) || 0) +
+                    getMovementAmount(
+                      {
+                        type:
+                          form.type,
+                        amount:
+                          form.amount,
+                      }
+                    )
+                )}
+              </strong>
+            </div>
+          </div>
+        )}
 
         <div className="modal-actions">
           <button
@@ -6191,7 +6919,9 @@ function TradeModal({
       : 0;
 
   const entry =
-    Number(form.entry);
+    Number(
+      form.entry
+    );
 
   const stopLoss =
     Number(
@@ -6546,15 +7276,10 @@ function TradeModal({
               {RR_OPTIONS.map(
                 (value) => (
                   <option
-                    key={
-                      value
-                    }
-                    value={
-                      value
-                    }
+                    key={value}
+                    value={value}
                   >
-                    RR
-                    {value}
+                    RR{value}
                   </option>
                 )
               )}
@@ -6644,6 +7369,50 @@ function TradeModal({
 
           <div className="field">
             <label>
+              Frais
+            </label>
+
+            <input
+              type="number"
+              step="0.01"
+              value={
+                form.fees
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  fees:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
+              Swap
+            </label>
+
+            <input
+              type="number"
+              step="0.01"
+              value={
+                form.swap
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  swap:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
+
+          <div className="field">
+            <label>
               Émotion
             </label>
 
@@ -6659,7 +7428,6 @@ function TradeModal({
                       .value,
                 })
               }
-              placeholder="Calme, FOMO..."
             />
           </div>
 
@@ -6695,30 +7463,10 @@ function TradeModal({
             </select>
           </div>
 
-          <div className="field full">
-            <label>
-              Erreurs / erreurs de discipline
-            </label>
-
-            <textarea
-              value={
-                form.mistakes
-              }
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  mistakes:
-                    event.target
-                      .value,
-                })
-              }
-            />
-          </div>
-
           {isEditing && (
             <div className="field">
               <label>
-                Risque historique du trade
+                Risque historique
               </label>
 
               <input
@@ -6735,12 +7483,29 @@ function TradeModal({
                         .value,
                   })
                 }
-                placeholder={`${formatMoney(
-                  riskMoney
-                )}`}
               />
             </div>
           )}
+
+          <div className="field full">
+            <label>
+              Erreurs / discipline
+            </label>
+
+            <textarea
+              value={
+                form.mistakes
+              }
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  mistakes:
+                    event.target
+                      .value,
+                })
+              }
+            />
+          </div>
         </div>
 
         <div className="trade-preview">
@@ -6900,6 +7665,7 @@ function TradeModal({
             onClick={onSave}
           >
             <Check size={17} />
+
             {isEditing
               ? "Enregistrer les modifications"
               : "Enregistrer le trade"}
@@ -7084,6 +7850,24 @@ export default function App() {
   });
 
   const [
+    movements,
+    setMovements,
+  ] = useState(() => {
+    try {
+      const saved =
+        localStorage.getItem(
+          MOVEMENTS_STORAGE_KEY
+        );
+
+      return saved
+        ? JSON.parse(saved)
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [
     dashboardCapitalFilter,
     setDashboardCapitalFilter,
   ] = useState(
@@ -7181,6 +7965,31 @@ export default function App() {
   );
 
   const [
+    movementModalOpen,
+    setMovementModalOpen,
+  ] = useState(
+    false
+  );
+
+  const [
+    editingMovementId,
+    setEditingMovementId,
+  ] = useState(
+    null
+  );
+
+  const [
+    movementForm,
+    setMovementForm,
+  ] = useState({
+    capitalId: "",
+    type: "deposit",
+    amount: "",
+    dateTime: "",
+    note: "",
+  });
+
+  const [
     notification,
     setNotification,
   ] = useState(
@@ -7209,6 +8018,15 @@ export default function App() {
   }, [trades]);
 
   useEffect(() => {
+    localStorage.setItem(
+      MOVEMENTS_STORAGE_KEY,
+      JSON.stringify(
+        movements
+      )
+    );
+  }, [movements]);
+
+  useEffect(() => {
     if (!notification) {
       return;
     }
@@ -7231,16 +8049,6 @@ export default function App() {
       dashboardCapitalFilter ===
       "all"
     ) {
-      return;
-    }
-
-    if (
-      !capitals.length
-    ) {
-      setDashboardCapitalFilter(
-        "all"
-      );
-
       return;
     }
 
@@ -7448,33 +8256,42 @@ export default function App() {
         id: createId(
           "capital"
         ),
+
         name,
+
         initialCapital:
           initial,
+
         currentBalance:
           Number(
             capitalForm.currentBalance
           ) ||
           initial,
+
         riskMode:
           capitalForm.riskMode,
+
         riskPercent:
           Number(
             capitalForm.riskPercent
           ) ||
           0,
+
         riskAmount:
           Number(
             capitalForm.riskAmount
           ) ||
           0,
+
         defaultRR:
           Number(
             capitalForm.defaultRR
           ) ||
           2,
+
         status:
           "active",
+
         createdAt:
           new Date().toISOString(),
       };
@@ -7561,11 +8378,19 @@ export default function App() {
           id
       );
 
+    const linkedMovements =
+      movements.some(
+        (movement) =>
+          movement.capitalId ===
+          id
+      );
+
     if (
-      linkedTrades
+      linkedTrades ||
+      linkedMovements
     ) {
       showNotification(
-        "Impossible de supprimer ce capital : des trades lui sont liés.",
+        "Impossible de supprimer ce capital : des trades ou des mouvements lui sont liés.",
         "error"
       );
       return;
@@ -7598,6 +8423,339 @@ export default function App() {
 
     showNotification(
       "Capital supprimé."
+    );
+  }
+
+  function openNewMovementModal(
+    capital = null
+  ) {
+    const fallback =
+      capital ||
+      capitals.find(
+        (item) =>
+          item.status !==
+          "archived"
+      );
+
+    if (!fallback) {
+      showNotification(
+        "Créez d'abord un capital.",
+        "error"
+      );
+      return;
+    }
+
+    setEditingMovementId(
+      null
+    );
+
+    setMovementForm({
+      capitalId:
+        fallback.id,
+      type: "deposit",
+      amount: "",
+      dateTime:
+        getDateTimeInputValue(),
+      note: "",
+    });
+
+    setMovementModalOpen(
+      true
+    );
+  }
+
+  function openEditMovementModal(
+    movement
+  ) {
+    setEditingMovementId(
+      movement.id
+    );
+
+    setMovementForm({
+      capitalId:
+        movement.capitalId ||
+        "",
+      type:
+        movement.type ===
+        "withdrawal"
+          ? "withdrawal"
+          : "deposit",
+      amount:
+        Math.abs(
+          Number(
+            movement.amount
+          ) || 0
+        ),
+      dateTime:
+        getDateTimeInputValue(
+          movement.dateTime
+        ),
+      note:
+        movement.note ||
+        "",
+    });
+
+    setMovementModalOpen(
+      true
+    );
+  }
+
+  function saveMovement() {
+    const capital =
+      capitals.find(
+        (item) =>
+          item.id ===
+          movementForm.capitalId
+      );
+
+    if (!capital) {
+      showNotification(
+        "Capital invalide.",
+        "error"
+      );
+      return;
+    }
+
+    const amount =
+      Math.abs(
+        Number(
+          movementForm.amount
+        )
+      );
+
+    if (
+      !Number.isFinite(
+        amount
+      ) ||
+      amount <= 0
+    ) {
+      showNotification(
+        "Le montant du mouvement doit être supérieur à 0.",
+        "error"
+      );
+      return;
+    }
+
+    if (
+      editingMovementId
+    ) {
+      const oldMovement =
+        movements.find(
+          (movement) =>
+            movement.id ===
+            editingMovementId
+        );
+
+      if (!oldMovement) {
+        showNotification(
+          "Mouvement introuvable.",
+          "error"
+        );
+        return;
+      }
+
+      const oldSignedAmount =
+        getMovementAmount(
+          oldMovement
+        );
+
+      const newSignedAmount =
+        movementForm.type ===
+        "withdrawal"
+          ? -amount
+          : amount;
+
+      setCapitals(
+        (current) =>
+          current.map(
+            (item) => {
+              if (
+                item.id ===
+                oldMovement.capitalId
+              ) {
+                return {
+                  ...item,
+                  currentBalance:
+                    (Number(
+                      item.currentBalance
+                    ) || 0) -
+                    oldSignedAmount,
+                };
+              }
+
+              return item;
+            }
+          )
+      );
+
+      setCapitals(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              movementForm.capitalId
+                ? {
+                    ...item,
+                    currentBalance:
+                      (Number(
+                        item.currentBalance
+                      ) || 0) +
+                      newSignedAmount,
+                  }
+                : item
+          )
+      );
+
+      setMovements(
+        (current) =>
+          current.map(
+            (movement) =>
+              movement.id ===
+              editingMovementId
+                ? {
+                    ...movement,
+                    capitalId:
+                      movementForm.capitalId,
+                    type:
+                      movementForm.type,
+                    amount,
+                    dateTime:
+                      movementForm.dateTime,
+                    note:
+                      movementForm.note,
+                  }
+                : movement
+          )
+      );
+
+      setMovementModalOpen(
+        false
+      );
+
+      setEditingMovementId(
+        null
+      );
+
+      showNotification(
+        "Mouvement modifié."
+      );
+
+      return;
+    }
+
+    const signedAmount =
+      movementForm.type ===
+      "withdrawal"
+        ? -amount
+        : amount;
+
+    const movement = {
+      id: createId(
+        "movement"
+      ),
+      capitalId:
+        movementForm.capitalId,
+      type:
+        movementForm.type,
+      amount,
+      dateTime:
+        movementForm.dateTime,
+      note:
+        movementForm.note,
+      createdAt:
+        new Date().toISOString(),
+    };
+
+    setMovements(
+      (current) => [
+        ...current,
+        movement,
+      ]
+    );
+
+    setCapitals(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id ===
+            capital.id
+              ? {
+                  ...item,
+                  currentBalance:
+                    (Number(
+                      item.currentBalance
+                    ) || 0) +
+                    signedAmount,
+                }
+              : item
+        )
+    );
+
+    setMovementModalOpen(
+      false
+    );
+
+    showNotification(
+      `${movementForm.type === "deposit" ? "Dépôt" : "Retrait"} enregistré : ${formatMoney(
+        amount
+      )}`
+    );
+  }
+
+  function deleteMovement(
+    id
+  ) {
+    const movement =
+      movements.find(
+        (item) =>
+          item.id === id
+      );
+
+    if (!movement) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Supprimer ce mouvement ? La balance sera recalculée en retirant son effet."
+      )
+    ) {
+      return;
+    }
+
+    const signedAmount =
+      getMovementAmount(
+        movement
+      );
+
+    setMovements(
+      (current) =>
+        current.filter(
+          (item) =>
+            item.id !== id
+        )
+    );
+
+    setCapitals(
+      (current) =>
+        current.map(
+          (capital) =>
+            capital.id ===
+            movement.capitalId
+              ? {
+                  ...capital,
+                  currentBalance:
+                    (Number(
+                      capital.currentBalance
+                    ) || 0) -
+                    signedAmount,
+                }
+              : capital
+        )
+    );
+
+    showNotification(
+      "Mouvement supprimé."
     );
   }
 
@@ -7704,7 +8862,9 @@ export default function App() {
           trade
         ),
       exitPrice:
-        trade.exitType ===
+        getTradeExitType(
+          trade
+        ) ===
         "BE"
           ? trade.exitPrice ??
             ""
@@ -7826,11 +8986,6 @@ export default function App() {
       return;
     }
 
-    const defaultRisk =
-      getCapitalRisk(
-        capital
-      );
-
     const riskMoney =
       Number(
         tradeForm.riskMoneyOverride
@@ -7838,7 +8993,9 @@ export default function App() {
         ? Number(
             tradeForm.riskMoneyOverride
           )
-        : defaultRisk;
+        : getCapitalRisk(
+            capital
+          );
 
     const riskPercent =
       getCapitalRiskPercent(
@@ -7945,7 +9102,9 @@ export default function App() {
     const newTrade = {
       id:
         editingTradeId ||
-        createId("trade"),
+        createId(
+          "trade"
+        ),
 
       capitalId:
         tradeForm.capitalId,
@@ -7996,7 +9155,8 @@ export default function App() {
 
       swap,
 
-      pnl: netPnl,
+      pnl:
+        netPnl,
 
       resultPips,
 
@@ -8005,8 +9165,6 @@ export default function App() {
       result:
         getTradeOutcome({
           pnl: netPnl,
-          resultR,
-          riskMoney,
         }),
 
       setup:
@@ -8269,12 +9427,18 @@ export default function App() {
     const backup = {
       app:
         "ARCH Trading Journal",
+
       version:
         BACKUP_VERSION,
+
       exportedAt:
         new Date().toISOString(),
+
       capitals,
+
       trades,
+
+      movements,
     };
 
     const json =
@@ -8344,7 +9508,7 @@ export default function App() {
         "object"
     ) {
       throw new Error(
-        "Format invalide."
+        "Format de sauvegarde invalide."
       );
     }
 
@@ -8357,7 +9521,7 @@ export default function App() {
       )
     ) {
       throw new Error(
-        "Le fichier doit contenir les tableaux capitals et trades."
+        "La sauvegarde doit contenir les tableaux capitals et trades."
       );
     }
 
@@ -8488,7 +9652,11 @@ export default function App() {
                 : "BUY",
 
             exitType:
-              EXIT_TYPES.includes(
+              [
+                "TP",
+                "SL",
+                "BE",
+              ].includes(
                 String(
                   trade.exitType ||
                     "BE"
@@ -8530,11 +9698,77 @@ export default function App() {
           })
         );
 
+    const movementsSource =
+      Array.isArray(
+        data.movements
+      )
+        ? data.movements
+        : [];
+
+    const movementsClean =
+      movementsSource
+        .filter(
+          (movement) =>
+            movement &&
+            typeof movement ===
+              "object" &&
+            capitalIds.has(
+              String(
+                movement.capitalId
+              )
+            )
+        )
+        .map(
+          (movement) => ({
+            id:
+              String(
+                movement.id ||
+                  createId(
+                    "movement"
+                  )
+              ),
+
+            capitalId:
+              String(
+                movement.capitalId
+              ),
+
+            type:
+              movement.type ===
+              "withdrawal"
+                ? "withdrawal"
+                : "deposit",
+
+            amount:
+              Math.abs(
+                Number(
+                  movement.amount
+                ) || 0
+              ),
+
+            dateTime:
+              movement.dateTime ||
+              new Date().toISOString(),
+
+            note:
+              movement.note ||
+              "",
+
+            createdAt:
+              movement.createdAt ||
+              new Date().toISOString(),
+          })
+        );
+
     return {
       capitals:
         capitalsClean,
+
       trades:
         tradesClean,
+
+      movements:
+        movementsClean,
     };
   }
 
@@ -8569,11 +9803,12 @@ export default function App() {
             parsed
           );
 
-        if (
-          !window.confirm(
-            `Importer cette sauvegarde ?\n\nCapitaux : ${normalized.capitals.length}\nTrades : ${normalized.trades.length}\n\nLes données actuelles seront remplacées.`
-          )
-        ) {
+        const confirmed =
+          window.confirm(
+            `Importer cette sauvegarde ?\n\nCapitaux : ${normalized.capitals.length}\nTrades : ${normalized.trades.length}\nMouvements : ${normalized.movements.length}\n\nLes données actuelles seront remplacées.`
+          );
+
+        if (!confirmed) {
           return;
         }
 
@@ -8583,6 +9818,10 @@ export default function App() {
 
         setTrades(
           normalized.trades
+        );
+
+        setMovements(
+          normalized.movements
         );
 
         setDashboardCapitalFilter(
@@ -8604,7 +9843,9 @@ export default function App() {
         showNotification(
           "Sauvegarde importée avec succès."
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         showNotification(
           error?.message ||
             "Impossible d'importer cette sauvegarde.",
@@ -8650,7 +9891,12 @@ export default function App() {
             capitals={
               capitals
             }
-            trades={trades}
+            trades={
+              trades
+            }
+            movements={
+              movements
+            }
             selectedCapitalId={
               dashboardCapitalFilter
             }
@@ -8699,6 +9945,9 @@ export default function App() {
             trades={
               trades
             }
+            movements={
+              movements
+            }
             onNew={
               openNewCapitalModal
             }
@@ -8713,6 +9962,15 @@ export default function App() {
             }
             onDelete={
               deleteCapital
+            }
+            onNewMovement={
+              openNewMovementModal
+            }
+            onEditMovement={
+              openEditMovementModal
+            }
+            onDeleteMovement={
+              deleteMovement
             }
           />
         );
@@ -8743,6 +10001,9 @@ export default function App() {
             }
             trades={
               trades
+            }
+            movements={
+              movements
             }
             onExport={
               exportData
@@ -8829,6 +10090,35 @@ export default function App() {
         }
         onSave={
           saveCapital
+        }
+      />
+
+      <MovementModal
+        open={
+          movementModalOpen
+        }
+        editingMovementId={
+          editingMovementId
+        }
+        form={
+          movementForm
+        }
+        setForm={
+          setMovementForm
+        }
+        capitals={
+          capitals
+        }
+        onClose={() => {
+          setMovementModalOpen(
+            false
+          );
+          setEditingMovementId(
+            null
+          );
+        }}
+        onSave={
+          saveMovement
         }
       />
 
